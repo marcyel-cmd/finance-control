@@ -1,0 +1,27 @@
+import { Router } from 'express';
+import { authRouter } from './auth.routes';
+import { transactionRouter } from './transaction.routes';
+import { cardRouter } from './card.routes';
+import { categoryRouter } from './category.routes';
+import { notificationRouter } from './notification.routes';
+import { analyticsRouter } from './analytics.routes';
+import { invoiceRouter } from './invoice.routes';
+import { userRouter } from './user.routes';
+import { authMiddleware } from '../middlewares/auth.middleware';
+import { analyticsController } from '../controllers/analytics.controller';
+
+const router = Router();
+
+router.use('/auth',          authRouter);
+router.use('/transactions',  transactionRouter);
+router.use('/cards',         cardRouter);
+router.use('/categories',    categoryRouter);
+router.use('/notifications', notificationRouter);
+router.use('/analytics',     analyticsRouter);
+router.use('/invoice',       invoiceRouter);
+router.use('/users',         userRouter);
+
+// Atalho /monthly-data (mesma l\u00F3gica que /analytics/monthly)
+router.get('/monthly-data', authMiddleware, (req, res, next) => analyticsController.monthly(req, res, next));
+
+export { router };
