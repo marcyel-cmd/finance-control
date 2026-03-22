@@ -22,14 +22,14 @@ export class CategoryController {
   async update(req: Request, res: Response, next: NextFunction) {
     try {
       const data = updateCategorySchema.parse(req.body);
-      const result = await categoryService.update(req.params.id, data);
+      const result = await categoryService.update(req.params.id as string, data);
       res.json({ success: true, data: result });
     } catch (error) { next(error); }
   }
 
   async delete(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await categoryService.delete(req.params.id);
+      const result = await categoryService.delete(req.params.id as string);
       res.json({ success: true, ...result });
     } catch (error) { next(error); }
   }

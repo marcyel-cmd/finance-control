@@ -39,7 +39,7 @@ export class TransactionController {
 
   async bills(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await transactionService.listBills(req.user!.userId, req.params.cardId);
+      const result = await transactionService.listBills(req.user!.userId, req.params.cardId as string);
       res.json({ success: true, data: result });
     } catch (error) { next(error); }
   }
@@ -51,14 +51,14 @@ export class TransactionController {
       if (!month || !year) {
         return res.status(400).json({ success: false, error: 'month e year s\u00E3o obrigat\u00F3rios' });
       }
-      const result = await transactionService.getBillDetail(req.user!.userId, req.params.cardId, month, year);
+      const result = await transactionService.getBillDetail(req.user!.userId, req.params.cardId as string, month, year);
       res.json({ success: true, data: result });
     } catch (error) { next(error); }
   }
 
   async findById(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await transactionService.findById(req.user!.userId, req.params.id);
+      const result = await transactionService.findById(req.user!.userId, req.params.id as string);
       res.json({ success: true, data: result });
     } catch (error) { next(error); }
   }
@@ -74,14 +74,14 @@ export class TransactionController {
   async update(req: Request, res: Response, next: NextFunction) {
     try {
       const data = updateTransactionSchema.parse(req.body);
-      const result = await transactionService.update(req.user!.userId, req.params.id, data);
+      const result = await transactionService.update(req.user!.userId, req.params.id as string, data);
       res.json({ success: true, ...result });
     } catch (error) { next(error); }
   }
 
   async delete(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await transactionService.delete(req.user!.userId, req.params.id);
+      const result = await transactionService.delete(req.user!.userId, req.params.id as string);
       res.json({ success: true, ...result });
     } catch (error) { next(error); }
   }

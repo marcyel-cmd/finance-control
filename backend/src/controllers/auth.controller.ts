@@ -81,7 +81,7 @@ export class AuthController {
 
   async passkeyDelete(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await authService.deletePasskey(req.user!.userId, req.params.id);
+      const result = await authService.deletePasskey(req.user!.userId, req.params.id as string);
       res.json({ success: true, data: result });
     } catch (error) { next(error); }
   }

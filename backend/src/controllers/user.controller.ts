@@ -34,21 +34,21 @@ export class UserController {
 
   async delete(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await userService.delete(req.user!.userId, req.params.id);
+      const result = await userService.delete(req.user!.userId, req.params.id as string);
       res.json({ success: true, ...result });
     } catch (error) { next(error); }
   }
 
   async listPasskeys(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await userService.listPasskeys(req.user!.userId, req.params.id);
+      const result = await userService.listPasskeys(req.user!.userId, req.params.id as string);
       res.json({ success: true, data: result });
     } catch (error) { next(error); }
   }
 
   async deletePasskey(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await userService.deletePasskey(req.user!.userId, req.params.passkeyId);
+      const result = await userService.deletePasskey(req.user!.userId, req.params.passkeyId as string);
       res.json({ success: true, ...result });
     } catch (error) { next(error); }
   }

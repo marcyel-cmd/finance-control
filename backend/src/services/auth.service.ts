@@ -174,8 +174,7 @@ export class AuthService {
       userName: user.email,
       userDisplayName: user.name,
       excludeCredentials: user.passkeys.map(pk => ({
-        id: Buffer.from(pk.credentialId, 'base64url'),
-        type: 'public-key' as const,
+        id: pk.credentialId,
       })),
       authenticatorSelection: {
         authenticatorAttachment: 'platform',
@@ -233,8 +232,7 @@ export class AuthService {
 
       if (user?.passkeys.length) {
         allowCredentials = user.passkeys.map(pk => ({
-          id: Buffer.from(pk.credentialId, 'base64url'),
-          type: 'public-key' as const,
+          id: pk.credentialId,
         }));
       }
     }
@@ -266,11 +264,11 @@ export class AuthService {
       expectedChallenge,
       expectedOrigin: ORIGIN,
       expectedRPID: RP_ID,
-      authenticator: {
-        credentialID: Buffer.from(passkey.credentialId, 'base64url'),
-        credentialPublicKey: passkey.publicKey,
+      credential: {
+        id: passkey.credentialId,
+        publicKey: passkey.publicKey,
         counter: Number(passkey.counter),
-        transports: ['internal'],
+        transports: ['internal' as any],
       },
       requireUserVerification: true,
     });

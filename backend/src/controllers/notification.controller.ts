@@ -20,7 +20,7 @@ export class NotificationController {
 
   async markRead(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await notificationService.markRead(req.user!.userId, req.params.id);
+      const result = await notificationService.markRead(req.user!.userId, req.params.id as string);
       res.json({ success: true, data: result });
     } catch (error) { next(error); }
   }
@@ -34,14 +34,14 @@ export class NotificationController {
 
   async markActionDone(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await notificationService.markActionDone(req.user!.userId, req.params.id);
+      const result = await notificationService.markActionDone(req.user!.userId, req.params.id as string);
       res.json({ success: true, data: result });
     } catch (error) { next(error); }
   }
 
   async delete(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await notificationService.delete(req.user!.userId, req.params.id);
+      const result = await notificationService.delete(req.user!.userId, req.params.id as string);
       res.json({ success: true, ...result });
     } catch (error) { next(error); }
   }
