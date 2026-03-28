@@ -466,7 +466,7 @@ export class TransactionService {
     const consumed = linked.reduce((s, t) => s + Number(t.value), 0);
     const pct = Number(forecast.value) > 0 ? (consumed / Number(forecast.value)) * 100 : 0;
 
-    if (consumed >= forecast.value) {
+    if (consumed >= Number(forecast.value)) {
       await prisma.transaction.update({ where: { id: forecastId }, data: { status: 'realizado' } });
     }
 

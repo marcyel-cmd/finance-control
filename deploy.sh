@@ -29,9 +29,9 @@ cd "$REPO_DIR"
 git pull origin "$(git rev-parse --abbrev-ref HEAD)"
 
 # ── 2. Backend: dependências ─────────────────────────────────
-log "Instalando dependências do backend..."
+log "Instalando dependências do backend (incluindo devDeps para build)..."
 cd "$BACKEND_DIR"
-npm ci --omit=dev
+npm ci
 # Gerar cliente Prisma após install
 npx prisma generate
 

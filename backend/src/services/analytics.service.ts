@@ -17,13 +17,13 @@ export class AnalyticsService {
 
       const entradas = txs
         .filter(t => t.type === 'entrada' && t.status === 'realizado')
-        .reduce((s, t) => s + t.value, 0);
+        .reduce((s, t) => s + Number(t.value), 0);
       const saidas = txs
         .filter(t => ['saida', 'saida_futura'].includes(t.type) && t.status === 'realizado')
-        .reduce((s, t) => s + t.value, 0);
+        .reduce((s, t) => s + Number(t.value), 0);
       const previsto = txs
         .filter(t => t.status === 'previsto')
-        .reduce((s, t) => s + t.value, 0);
+        .reduce((s, t) => s + Number(t.value), 0);
 
       result.push({
         month: MONTH_SHORT[m - 1], monthNum: m, year: y,
@@ -39,10 +39,10 @@ export class AnalyticsService {
       where: { userId, month, year, type: { in: ['saida', 'saida_futura'] }, status: 'realizado' },
     });
     const cats  = await prisma.category.findMany();
-    const total = txs.reduce((s, t) => s + t.value, 0);
+    const total = txs.reduce((s, t) => s + Number(t.value), 0);
 
     const map = new Map<string, number>();
-    txs.forEach(t => map.set(t.category, (map.get(t.category) || 0) + t.value));
+    txs.forEach(t => map.set(t.category, (map.get(t.category) || 0) + Number(t.value)));
 
     const result = cats
       .map(c => ({
@@ -67,8 +67,9 @@ export class AnalyticsService {
     const byDesc = (arr: any[]) => {
       const m = new Map<string, number>();
       arr.forEach(t => {
-        if (!m.has(t.description) || t.value > m.get(t.description)!) {
-          m.set(t.description, t.value);
+        const v = Number(t.value);
+        if (!m.has(t.description) || v > m.get(t.description)!) {
+          m.set(t.description, v);
         }
       });
       return Array.from(m.values()).reduce((s, v) => s + v, 0);

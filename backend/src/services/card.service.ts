@@ -13,7 +13,7 @@ export class CardService {
 
   async findById(userId: string, id: string) {
     const card = await prisma.creditCard.findFirst({ where: { id, userId } });
-    if (!card) throw new AppError(404, 'Cart\u00E3o n\u00E3o encontrado');
+    if (!card) throw new AppError(404, 'Cartão não encontrado');
     return card;
   }
 
@@ -26,7 +26,7 @@ export class CardService {
       where,
       orderBy: { date: 'desc' },
     });
-    const total = transactions.reduce((s, t) => s + t.value, 0);
+    const total = transactions.reduce((s, t) => s + Number(t.value), 0);
 
     return { card, transactions, total };
   }
@@ -55,7 +55,7 @@ export class CardService {
 
   async delete(userId: string, id: string) {
     await this.findById(userId, id);
-    // Desvincular transa\u00E7\u00F5es antes de deletar
+    // Desvincular transações antes de deletar
     await prisma.transaction.updateMany({
       where: { cardId: id },
       data: { cardId: null },
@@ -67,20 +67,20 @@ export class CardService {
   async payBill(userId: string, cardId: string, billMonth: number, billYear: number) {
     const card = await this.findById(userId, cardId);
 
-    // Verificar se j\u00E1 foi paga
+    // Verificar se já foi paga
     const existingPayment = await prisma.transaction.findFirst({
       where: { userId, cardId, billMonth, billYear, type: 'pagamento_fatura' },
     });
-    if (existingPayment) throw new AppError(409, 'Esta fatura j\u00E1 foi paga');
+    if (existingPayment) throw new AppError(409, 'Esta fatura já foi paga');
 
-    // Calcular total da fatura
+    // Calcular total da fatura (com conversão Decimal → number)
     const txs = await prisma.transaction.findMany({
       where: { userId, cardId, billMonth, billYear, type: { not: 'pagamento_fatura' } },
     });
-    const billTotal = txs.reduce((s, t) => s + t.value, 0);
-    if (billTotal <= 0) throw new AppError(400, 'Fatura sem transa\u00E7\u00F5es para pagar');
+    const billTotal = txs.reduce((s, t) => s + Number(t.value), 0);
+    if (billTotal <= 0) throw new AppError(400, 'Fatura sem transações para pagar');
 
-    // Criar transa\u00E7\u00E3o de pagamento
+    // Criar transação de pagamento
     await prisma.transaction.create({
       data: {
         userId,
@@ -100,12 +100,25 @@ export class CardService {
       },
     });
 
-    // Restaurar limite
-    const previousUsed = card.used;
-    const newUsed = Math.max(0, card.used - billTotal);
-    await prisma.creditCard.update({
-      where: { id: cardId },
-      data: { used: newUsed },
+    // Restaurar limite: decrement atômico para evitar race condition
+    await prisma.creditCard.updateMany({
+      where: { id: cardId, used: { gte: billTotal } },
+      data: { used: { decrement: billTotal } },
+    });
+    await prisma.$executeRaw`UPDATE credit_cards SET used = GREATEST(0, used) WHERE id = ${cardId}`;
+
+    const updatedCard = await prisma.creditCard.findUnique({ where: { id: cardId } });
+    const newUsed = Number(updatedCard?.used ?? 0);
+    const previousUsed = Number(card.used);
+
+    await notificationService.create(userId, {
+      type: 'info',
+      title: 'Fatura paga',
+      message: `Fatura ${String(billMonth).padStart(2,'0')}/${billYear} de ${card.name} paga: R$ ${billTotal.toFixed(2).replace('.', ',')}`,
+      icon: '✅',
+      relatedAmount: billTotal,
+      actionLabel: 'Ver Cartão',
+      actionRoute: '/cartoes',
     });
 
     return { cardId, billMonth, billYear, billTotal, previousUsed, newUsed };
