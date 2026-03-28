@@ -21,6 +21,7 @@ REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 BACKEND_DIR="$REPO_DIR/backend"
 FRONTEND_DIR="$REPO_DIR/frontend"
 NGINX_STATIC="/var/www/preve/frontend"   # ajuste conforme seu nginx
+HEALTH_URL="${HEALTH_URL:-http://localhost:3333/api/v1/health}"
 
 # ── 1. Git pull ──────────────────────────────────────────────
 log "Atualizando código via git pull..."
@@ -38,18 +39,20 @@ npx prisma generate
 log "Compilando TypeScript do backend..."
 npm run build
 
-# ── 4. Banco de dados: migrations ────────────────────────────
-log "Executando migrations do PostgreSQL..."
-npx prisma migrate deploy
-
-# ── 5. Frontend: dependências ────────────────────────────────
+# ── 4. Frontend: dependências ────────────────────────────────
 log "Instalando dependências do frontend..."
 cd "$FRONTEND_DIR"
 npm ci
 
-# ── 6. Frontend: build Vite ──────────────────────────────────
+# ── 5. Frontend: build Vite ──────────────────────────────────
 log "Compilando frontend com Vite..."
 npm run build
+
+# ── 6. Banco de dados: migrations ────────────────────────────
+# Executado APÓS builds para possibilitar rollback rápido
+log "Executando migrations do PostgreSQL..."
+cd "$BACKEND_DIR"
+npx prisma migrate deploy
 
 # ── 7. Copiar frontend para pasta do Nginx ───────────────────
 log "Copiando build do frontend para $NGINX_STATIC..."
@@ -66,7 +69,30 @@ else
 fi
 pm2 save
 
-log "✅ Deploy concluído com sucesso!"
+# ── 9. Health check ──────────────────────────────────────────
+log "Aguardando backend inicializar..."
+sleep 4
+
+MAX_RETRIES=10
+RETRY=0
+OK=false
+
+while [ $RETRY -lt $MAX_RETRIES ]; do
+  HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_URL" 2>/dev/null || echo "000")
+  if [ "$HTTP_STATUS" = "200" ]; then
+    OK=true
+    break
+  fi
+  RETRY=$((RETRY + 1))
+  warn "Health check falhou (status: $HTTP_STATUS) — tentativa $RETRY/$MAX_RETRIES..."
+  sleep 3
+done
+
+if [ "$OK" = "false" ]; then
+  fail "Backend não respondeu ao health check em $HEALTH_URL após $MAX_RETRIES tentativas. Verifique os logs: pm2 logs finance-backend"
+fi
+
+log "✅ Deploy concluído com sucesso! Backend saudável em $HEALTH_URL"
 echo ""
-echo "  Backend  → http://localhost:3333/api/v1/health"
+echo "  Backend  → $HEALTH_URL"
 echo "  Frontend → $NGINX_STATIC"

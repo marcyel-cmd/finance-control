@@ -1,15 +1,16 @@
 import { Router } from 'express';
 import { authController } from '../controllers/auth.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
+import { adminMiddleware } from '../middlewares/admin.middleware';
 
 const authRouter = Router();
 
-// P\u00FAblicas
-authRouter.post('/register',                    (req, res, next) => authController.register(req, res, next));
+// Protegida: apenas admins podem criar novos usuários
+authRouter.post('/register', authMiddleware, adminMiddleware, (req, res, next) => authController.register(req, res, next));
 authRouter.post('/login',                       (req, res, next) => authController.login(req, res, next));
 authRouter.post('/refresh',                     (req, res, next) => authController.refresh(req, res, next));
 
-// WebAuthn p\u00FAblicas
+// WebAuthn públicas
 authRouter.post('/passkey/authenticate-options', (req, res, next) => authController.passkeyAuthOptions(req, res, next));
 authRouter.post('/passkey/authenticate-verify',  (req, res, next) => authController.passkeyAuthVerify(req, res, next));
 

@@ -1,4 +1,5 @@
 import { prisma } from '../lib/prisma';
+import { AppError } from '../middlewares/errorHandler';
 
 export class NotificationService {
 
@@ -15,6 +16,8 @@ export class NotificationService {
   }
 
   async markRead(userId: string, id: string) {
+    const notification = await prisma.notification.findFirst({ where: { id, userId } });
+    if (!notification) throw new AppError(404, 'Notificação não encontrada');
     return prisma.notification.update({
       where: { id },
       data: { read: true },
@@ -30,6 +33,8 @@ export class NotificationService {
   }
 
   async markActionDone(userId: string, id: string) {
+    const notification = await prisma.notification.findFirst({ where: { id, userId } });
+    if (!notification) throw new AppError(404, 'Notificação não encontrada');
     return prisma.notification.update({
       where: { id },
       data: { actionDone: true },
@@ -63,7 +68,7 @@ export class NotificationService {
   // ── Triggers autom\u00E1ticos ────────────────────────────────
 
   async checkCardLimit(userId: string, card: any) {
-    const pct = card.limit > 0 ? (card.used / card.limit) * 100 : 0;
+    const pct = Number(card.limit) > 0 ? (Number(card.used) / Number(card.limit)) * 100 : 0;
 
     if (pct >= 95) {
       await this.create(userId, {

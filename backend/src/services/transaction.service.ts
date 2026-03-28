@@ -50,26 +50,44 @@ export class TransactionService {
 
   async list(userId: string, query: any) {
     const where: any = { userId };
-    if (query.month && query.year) { where.month = query.month; where.year = query.year; }
+    if (query.month && query.year) { where.month = Number(query.month); where.year = Number(query.year); }
     if (query.type)      where.type     = query.type;
     if (query.category)  where.category = query.category;
     if (query.status)    where.status   = query.status;
     if (query.cardId)    where.cardId   = query.cardId;
     if (query.search)    where.description = { contains: query.search, mode: 'insensitive' };
     if (query.billMonth && query.billYear) {
-      where.billMonth = query.billMonth;
-      where.billYear  = query.billYear;
+      where.billMonth = Number(query.billMonth);
+      where.billYear  = Number(query.billYear);
     }
 
-    const data = await prisma.transaction.findMany({
-      where,
-      orderBy: { date: 'desc' },
-      include: {
-        card: { select: { id: true, name: true, lastDigits: true, color: true, brand: true } },
-      },
-    });
+    // Paginação
+    const page     = Math.max(1, parseInt(query.page  || '1',  10));
+    const pageSize = Math.min(200, Math.max(1, parseInt(query.pageSize || '50', 10)));
+    const skip     = (page - 1) * pageSize;
 
-    return { data, meta: { count: data.length } };
+    const [data, total] = await prisma.$transaction([
+      prisma.transaction.findMany({
+        where,
+        orderBy: { date: 'desc' },
+        skip,
+        take: pageSize,
+        include: {
+          card: { select: { id: true, name: true, lastDigits: true, color: true, brand: true } },
+        },
+      }),
+      prisma.transaction.count({ where }),
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        pageSize,
+        totalPages: Math.ceil(total / pageSize),
+      },
+    };
   }
 
   async findById(userId: string, id: string) {
@@ -94,7 +112,7 @@ export class TransactionService {
 
     // Verificar limite
     if (card && ['saida', 'saida_futura'].includes(data.type) && (data.status || 'realizado') === 'realizado') {
-      const available = card.limit - card.used;
+      const available = Number(card.limit) - Number(card.used);
       const needed = (data.installment && data.installmentTotal >= 2)
         ? data.value * data.installmentTotal
         : data.value;
@@ -171,55 +189,68 @@ export class TransactionService {
     const parcela   = data.value;
     const total     = parcela * n;
     const firstBill = getBillPeriod(dateObj, card.closingDay);
-    const txs: any[] = [];
 
-    for (let i = 0; i < n; i++) {
-      const bill = advanceMonths(firstBill.billMonth, firstBill.billYear, i);
-      const t = await prisma.transaction.create({
-        data: {
-          userId,
-          type: data.type,
-          description: `${data.description.toUpperCase()} (${i + 1}/${n})`,
-          category: data.category,
-          value: parcela,
-          date: dateObj,
-          paymentMethod: data.paymentMethod,
-          cardId: card.id,
-          status: data.status || 'realizado',
-          recurring: false,
-          month: bill.month,
-          year: bill.year,
-          installment: true,
-          installmentTotal: n,
-          installmentNumber: i + 1,
-          totalValue: total,
-          billMonth: bill.month,
-          billYear: bill.year,
-        },
-        include: { card: { select: { id: true, name: true, lastDigits: true, color: true, brand: true } } },
-      });
-      txs.push(t);
-    }
+    // Usar prisma.$transaction para garantir atomicidade de todo o parcelamento
+    const txs: any[] = await prisma.$transaction(async (prismaTx) => {
+      const created: any[] = [];
 
-    // Setar parentId nas filhas
-    const parentId = txs[0].id;
-    await Promise.all(
-      txs.slice(1).map(t => prisma.transaction.update({ where: { id: t.id }, data: { parentId } }))
-    );
+      for (let i = 0; i < n; i++) {
+        const bill = advanceMonths(firstBill.billMonth, firstBill.billYear, i);
+        const t = await prismaTx.transaction.create({
+          data: {
+            userId,
+            type: data.type,
+            description: `${data.description.toUpperCase()} (${i + 1}/${n})`,
+            category: data.category,
+            value: parcela,
+            date: dateObj,
+            paymentMethod: data.paymentMethod,
+            cardId: card.id,
+            status: data.status || 'realizado',
+            recurring: false,
+            month: bill.month,
+            year: bill.year,
+            installment: true,
+            installmentTotal: n,
+            installmentNumber: i + 1,
+            totalValue: total,
+            billMonth: bill.month,
+            billYear: bill.year,
+          },
+          include: { card: { select: { id: true, name: true, lastDigits: true, color: true, brand: true } } },
+        });
+        created.push(t);
+      }
 
+      // Setar parentId nas filhas
+      const parentId = created[0].id;
+      await Promise.all(
+        created.slice(1).map(t => prismaTx.transaction.update({ where: { id: t.id }, data: { parentId } }))
+      );
+
+      if ((data.status || 'realizado') === 'realizado') {
+        await prismaTx.creditCard.update({
+          where: { id: card.id },
+          data: { used: { increment: total } },
+        });
+      }
+
+      return created;
+    });
+
+    // Checar limite após commit da transação
     if ((data.status || 'realizado') === 'realizado') {
-      const updated = await prisma.creditCard.update({
-        where: { id: card.id },
-        data: { used: { increment: total } },
-      });
-      await notificationService.checkCardLimit(userId, updated);
+      const updatedCard = await prisma.creditCard.findUnique({ where: { id: card.id } });
+      if (updatedCard) {
+        await notificationService.checkCardLimit(userId, updatedCard);
+      }
     }
 
-    // Notifica\u00E7\u00E3o de parcelamento criado
+    // Notificação de parcelamento criado
     await notificationService.create(userId, {
       type: 'info',
       title: 'Parcelamento criado',
-      message: `${data.description.toUpperCase()} \u2014 ${n}x de R$ ${parcela.toFixed(2).replace('.', ',')}`,
+      message: `${data.description.toUpperCase()} — ${n}x de R$ ${Number(parcela).toFixed(2).replace('.', ',')}`,
       icon: '\u{1F4B3}',
       relatedAmount: total,
       actionLabel: 'Ver Cart\u00E3o',
@@ -232,7 +263,7 @@ export class TransactionService {
 
     return {
       data: txs[0],
-      _billMessage: `${n}x de R$ ${parcela.toFixed(2).replace('.', ',')}. Primeira: ${firstBillName}, \u00FAltima: ${lastBillName}.`,
+      _billMessage: `${n}x de R$ ${Number(parcela).toFixed(2).replace('.', ',')}. Primeira: ${firstBillName}, \u00FAltima: ${lastBillName}.`,
       _installmentInfo: {
         totalParcelas: n, valorParcela: parcela, valorTotal: total,
         parcelas: txs.map(t => ({ id: t.id, number: t.installmentNumber, billMonth: t.billMonth, billYear: t.billYear })),
@@ -257,15 +288,16 @@ export class TransactionService {
       year  = d.getFullYear();
     }
 
-    // Reverter valor antigo no limite
+    // Reverter valor antigo no limite (operação atômica com decrement)
     if (existing.cardId && ['saida', 'saida_futura'].includes(existing.type) && existing.status === 'realizado') {
-      const oldCard = await prisma.creditCard.findUnique({ where: { id: existing.cardId } });
-      if (oldCard) {
-        await prisma.creditCard.update({
-          where: { id: existing.cardId },
-          data: { used: Math.max(0, oldCard.used - existing.value) },
-        });
-      }
+      await prisma.creditCard.updateMany({
+        where: { id: existing.cardId, used: { gte: existing.value } },
+        data: { used: { decrement: existing.value } },
+      });
+      // Garantir que used não fique negativo (caso edge)
+      await prisma.$executeRaw`
+        UPDATE credit_cards SET used = GREATEST(0, used) WHERE id = ${existing.cardId}
+      `;
     }
 
     if (data.description) data.description = data.description.toUpperCase();
@@ -305,13 +337,12 @@ export class TransactionService {
     if (tx.installment && !tx.parentId) {
       if (tx.cardId && tx.status === 'realizado') {
         const totalValue = tx.totalValue || tx.value;
-        const card = await prisma.creditCard.findUnique({ where: { id: tx.cardId } });
-        if (card) {
-          await prisma.creditCard.update({
-            where: { id: tx.cardId },
-            data: { used: Math.max(0, card.used - totalValue) },
-          });
-        }
+        // Decrement atômico para evitar race condition
+        await prisma.creditCard.updateMany({
+          where: { id: tx.cardId, used: { gte: totalValue } },
+          data: { used: { decrement: totalValue } },
+        });
+        await prisma.$executeRaw`UPDATE credit_cards SET used = GREATEST(0, used) WHERE id = ${tx.cardId}`;
       }
       await prisma.transaction.deleteMany({ where: { parentId: id } });
       await prisma.transaction.delete({ where: { id } });
@@ -319,13 +350,12 @@ export class TransactionService {
     }
 
     if (tx.cardId && ['saida', 'saida_futura'].includes(tx.type) && tx.status === 'realizado') {
-      const card = await prisma.creditCard.findUnique({ where: { id: tx.cardId } });
-      if (card) {
-        await prisma.creditCard.update({
-          where: { id: tx.cardId },
-          data: { used: Math.max(0, card.used - tx.value) },
-        });
-      }
+      // Decrement atômico para evitar race condition
+      await prisma.creditCard.updateMany({
+        where: { id: tx.cardId, used: { gte: tx.value } },
+        data: { used: { decrement: tx.value } },
+      });
+      await prisma.$executeRaw`UPDATE credit_cards SET used = GREATEST(0, used) WHERE id = ${tx.cardId}`;
     }
 
     await prisma.transaction.delete({ where: { id } });
@@ -337,11 +367,11 @@ export class TransactionService {
 
     const entradas = txs
       .filter(t => t.type === 'entrada' && t.status === 'realizado')
-      .reduce((s, t) => s + t.value, 0);
+      .reduce((s, t) => s + Number(t.value), 0);
 
     const saidas = txs
       .filter(t => ['saida', 'saida_futura'].includes(t.type) && t.status === 'realizado')
-      .reduce((s, t) => s + t.value, 0);
+      .reduce((s, t) => s + Number(t.value), 0);
 
     const saldo    = entradas - saidas;
     const economia = entradas > 0 ? ((entradas - saidas) / entradas) * 100 : 0;
@@ -351,8 +381,8 @@ export class TransactionService {
     let previsto = 0;
     for (const p of previstos) {
       const linked = await prisma.transaction.findMany({ where: { linkedPreviewId: p.id } });
-      const consumed = linked.reduce((s, t) => s + t.value, 0);
-      const remaining = p.value - consumed;
+      const consumed = linked.reduce((s, t) => s + Number(t.value), 0);
+      const remaining = Number(p.value) - consumed;
       if (remaining > 0) previsto += remaining;
     }
 
@@ -369,8 +399,8 @@ export class TransactionService {
     const result = [];
     for (const f of forecasts) {
       const linked   = await prisma.transaction.findMany({ where: { linkedPreviewId: f.id } });
-      const consumed = linked.reduce((s, t) => s + t.value, 0);
-      const remaining = f.value - consumed;
+      const consumed = linked.reduce((s, t) => s + Number(t.value), 0);
+      const remaining = Number(f.value) - consumed;
       if (remaining > 0) result.push({ ...f, originalValue: f.value, consumed, remaining });
     }
     return result;
@@ -397,7 +427,7 @@ export class TransactionService {
       });
       return {
         billMonth: b.billMonth!, billYear: b.billYear!,
-        total: b._sum.value || 0, count: b._count,
+        total: Number(b._sum.value) || 0, count: b._count,
         status: payment ? 'paga' : getBillStatus(b.billMonth!, b.billYear!, card.closingDay, card.dueDay),
         dueDay: card.dueDay,
         isPaid: !!payment,
@@ -413,7 +443,7 @@ export class TransactionService {
       where: { userId, cardId, billMonth, billYear, type: { not: 'pagamento_fatura' } },
       orderBy: { date: 'desc' },
     });
-    const total   = txs.reduce((s, t) => s + t.value, 0);
+    const total   = txs.reduce((s, t) => s + Number(t.value), 0);
     const payment = await prisma.transaction.findFirst({
       where: { userId, cardId, billMonth, billYear, type: 'pagamento_fatura' },
     });
@@ -433,8 +463,8 @@ export class TransactionService {
     const forecast = await prisma.transaction.findUnique({ where: { id: forecastId } });
     if (!forecast) return;
     const linked   = await prisma.transaction.findMany({ where: { linkedPreviewId: forecastId } });
-    const consumed = linked.reduce((s, t) => s + t.value, 0);
-    const pct = forecast.value > 0 ? (consumed / forecast.value) * 100 : 0;
+    const consumed = linked.reduce((s, t) => s + Number(t.value), 0);
+    const pct = Number(forecast.value) > 0 ? (consumed / Number(forecast.value)) * 100 : 0;
 
     if (consumed >= forecast.value) {
       await prisma.transaction.update({ where: { id: forecastId }, data: { status: 'realizado' } });

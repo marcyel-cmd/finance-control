@@ -65,6 +65,7 @@ export class AuthService {
     const tokens = generateTokens({
       userId: user.id,
       email: user.email,
+      role: user.role,
     });
 
     return { user: sanitizeUser(user), ...tokens };
@@ -83,6 +84,7 @@ export class AuthService {
     const tokens = generateTokens({
       userId: user.id,
       email: user.email,
+      role: user.role,
     });
 
     return { user: sanitizeUser(user), ...tokens };
@@ -103,6 +105,7 @@ export class AuthService {
       return generateTokens({
         userId: user.id,
         email: user.email,
+        role: user.role,
       });
     } catch {
       throw new AppError(401, 'Refresh token inválido ou expirado');
@@ -296,6 +299,7 @@ export class AuthService {
     const tokens = generateTokens({
       userId: user.id,
       email: user.email,
+      role: user.role,
     });
 
     return { user: sanitizeUser(user), ...tokens };

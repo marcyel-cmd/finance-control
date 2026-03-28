@@ -34,8 +34,8 @@ model CreditCard {
   lastDigits String   @map("last_digits") @db.VarChar(4)
   brand      String
   color      String   @db.VarChar(7)
-  limit      Float    @default(0)
-  used       Float    @default(0)
+  limit      Decimal  @default(0) @db.Decimal(15, 2)
+  used       Decimal  @default(0) @db.Decimal(15, 2)
   closingDay Int      @map("closing_day")
   dueDay     Int      @map("due_day")
   type       String
@@ -54,7 +54,7 @@ model Transaction {
   type          String
   description   String
   category      String
-  value         Float
+  value         Decimal  @db.Decimal(15, 2)
   date          DateTime
   paymentMethod String   @map("payment_method")
   cardId        String?  @map("card_id")
@@ -69,7 +69,7 @@ model Transaction {
   installmentTotal  Int?    @map("installment_total")
   installmentNumber Int?    @map("installment_number")
   parentId          String? @map("parent_id")
-  totalValue        Float?  @map("total_value")
+  totalValue        Decimal? @db.Decimal(15, 2) @map("total_value")
 
   billMonth Int? @map("bill_month")
   billYear  Int? @map("bill_year")
@@ -112,7 +112,7 @@ model Notification {
   actionLabel   String?  @map("action_label")
   actionRoute   String?  @map("action_route")
   actionDone    Boolean  @default(false) @map("action_done")
-  relatedAmount Float?   @map("related_amount")
+  relatedAmount Decimal? @db.Decimal(15, 2) @map("related_amount")
   createdAt     DateTime @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
