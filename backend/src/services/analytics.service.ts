@@ -122,7 +122,7 @@ export class AnalyticsService {
       .reduce((s, t) => s + Number(t.value), 0);
 
     // Top 3 categorias de gastos com labels legíveis
-    const userCategories = await prisma.category.findMany({ where: { userId } });
+    const userCategories = await prisma.category.findMany();
     const catLabelMap = new Map(userCategories.map(c => [c.id, c.label]));
 
     const catMap = new Map<string, number>();
