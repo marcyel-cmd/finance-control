@@ -20,7 +20,7 @@ fail() { echo -e "${RED}[erro]${NC}   $*"; exit 1; }
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 BACKEND_DIR="$REPO_DIR/backend"
 FRONTEND_DIR="$REPO_DIR/frontend"
-NGINX_STATIC="/var/www/preve/frontend"   # ajuste conforme seu nginx
+NGINX_STATIC="/var/www/preve/frontend"   # Nginx root deve apontar para este diretório
 HEALTH_URL="${HEALTH_URL:-http://localhost:3333/api/v1/users/health}"
 
 # ── 1. Git pull ──────────────────────────────────────────────
