@@ -435,6 +435,58 @@ export class TransactionService {
     }));
   }
 
+  // ── Rolagem de Saldo: lança "Saldo em Conta" no dia 1 do mês corrente ──────
+  async carryForwardBalance(userId: string, month: number, year: number) {
+    // Só executa se for o dia 1 do mês ou nos primeiros 3 dias (tolerância)
+    const today = new Date();
+    if (today.getMonth() + 1 !== month || today.getFullYear() !== year) {
+      return { skipped: true, reason: 'Período não é o mês atual' };
+    }
+
+    // Verificar se já existe entrada de rolagem para este mês
+    const existing = await prisma.transaction.findFirst({
+      where: { userId, description: 'SALDO EM CONTA', month, year, type: 'entrada' },
+    });
+    if (existing) return { skipped: true, reason: 'Rolagem já realizada para este mês' };
+
+    // Mês anterior
+    let prevMonth = month - 1, prevYear = year;
+    if (prevMonth <= 0) { prevMonth = 12; prevYear -= 1; }
+
+    // Calcular saldo real do mês anterior
+    const txs = await prisma.transaction.findMany({
+      where: { userId, month: prevMonth, year: prevYear },
+    });
+    const entradas = txs
+      .filter(t => t.type === 'entrada' && t.status === 'realizado')
+      .reduce((s, t) => s + Number(t.value), 0);
+    const saidas = txs
+      .filter(t => ['saida', 'saida_futura'].includes(t.type) && t.status === 'realizado')
+      .reduce((s, t) => s + Number(t.value), 0);
+    const balance = entradas - saidas;
+
+    if (balance <= 0) return { skipped: true, reason: `Saldo anterior negativo ou zero: R$ ${balance.toFixed(2)}` };
+
+    // Criar lançamento de rolagem de saldo
+    const date = new Date(year, month - 1, 1, 12, 0, 0);
+    const tx = await prisma.transaction.create({
+      data: {
+        userId,
+        type: 'entrada',
+        description: 'SALDO EM CONTA',
+        category: 'outros',
+        value: balance,
+        date,
+        paymentMethod: 'transferencia',
+        status: 'realizado',
+        recurring: false,
+        month,
+        year,
+      },
+    });
+    return { created: true, balance, transaction: tx };
+  }
+
   async getBillDetail(userId: string, cardId: string, billMonth: number, billYear: number) {
     const card = await prisma.creditCard.findFirst({ where: { id: cardId, userId } });
     if (!card) throw new AppError(404, 'Cart\u00E3o n\u00E3o encontrado');

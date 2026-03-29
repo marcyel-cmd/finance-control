@@ -182,6 +182,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const { month, year } = periodRef.current;
     setLoading(true);
     try {
+      // Rolagem de saldo: verificar se deve criar lançamento do mês anterior
+      // Roda silenciosamente — não bloqueia o carregamento principal
+      const today = new Date();
+      if (today.getDate() <= 5 && today.getMonth() + 1 === month && today.getFullYear() === year) {
+        transactionsApi.carryForward(month, year).catch(() => {/* silencioso */});
+      }
+
       await Promise.all([
         loadCategories(),
         loadTransactions(month, year),

@@ -7,6 +7,7 @@ interface ResponsiveDashboardProps {
   creditCards: React.ReactNode;
   predictedExpenses: React.ReactNode | null;
   recentTransactions: React.ReactNode;
+  aiInsights?: React.ReactNode | null;
 }
 
 export function ResponsiveDashboard({
@@ -15,6 +16,7 @@ export function ResponsiveDashboard({
   creditCards,
   predictedExpenses,
   recentTransactions,
+  aiInsights,
 }: ResponsiveDashboardProps) {
   const deviceType = useDeviceType();
 
@@ -28,7 +30,7 @@ export function ResponsiveDashboard({
           <div className="grid grid-cols-4 gap-4">
             {summaryCards}
           </div>
-          
+          {aiInsights}
           {chart}
           {recentTransactions}
         </div>
@@ -50,7 +52,7 @@ export function ResponsiveDashboard({
         <div className="grid grid-cols-2 gap-4">
           {summaryCards}
         </div>
-
+        {aiInsights}
         {/* Chart takes full width */}
         {chart}
 
@@ -74,6 +76,7 @@ export function ResponsiveDashboard({
       <div className="grid grid-cols-2 gap-3">
         {summaryCards}
       </div>
+      {aiInsights}
       {chart}
       {creditCards}
       {predictedExpenses}

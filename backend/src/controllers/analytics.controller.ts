@@ -38,6 +38,22 @@ export class AnalyticsController {
       res.json({ success: true, data: result });
     } catch (error) { next(error); }
   }
+
+  async insights(req: Request, res: Response, next: NextFunction) {
+    try {
+      const month = Number(req.query.month) || new Date().getMonth() + 1;
+      const year  = Number(req.query.year)  || new Date().getFullYear();
+      // Buscar nome do usuário no banco (não está no JWT payload)
+      const { prisma } = await import('../lib/prisma');
+      const user = await prisma.user.findUnique({
+        where: { id: req.user!.userId },
+        select: { name: true },
+      });
+      const userName = user?.name?.split(' ')[0] || 'você';
+      const result = await analyticsService.insights(req.user!.userId, month, year, userName);
+      res.json({ success: true, data: result });
+    } catch (error) { next(error); }
+  }
 }
 
 export const analyticsController = new AnalyticsController();

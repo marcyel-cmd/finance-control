@@ -52,4 +52,10 @@ export const analyticsApi = {
       `/monthly-data?months=${months}`
     );
   },
+
+  async insights(month: number, year: number) {
+    return apiFetch<{ success: boolean; data: { insights: string[]; generatedAt: string } }>(
+      `/analytics/insights?month=${month}&year=${year}`
+    );
+  },
 };

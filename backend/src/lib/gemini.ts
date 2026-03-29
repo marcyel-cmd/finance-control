@@ -24,6 +24,47 @@ export interface AnalysisResult {
   };
 }
 
+// ── Geração de insights financeiros compactos ─────────────────────────────────
+// Otimizado para token mínimo: prompt curto + maxOutputTokens baixo
+
+export async function generateFinancialInsights(
+  userName: string,
+  data: {
+    month: string;
+    entradas: number;
+    saidas: number;
+    previsto: number;
+    topCategories: string;
+    saidaChange: string;
+  }
+): Promise<string[]> {
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+  const saldoLivre = data.entradas - data.saidas - data.previsto;
+
+  const prompt = `Assistente financeiro pessoal de ${userName}. Gere 2 mensagens curtas (máx 90 chars cada), diretas e com nome.
+Dados ${data.month}: Entradas R$${data.entradas.toFixed(0)} | Saídas R$${data.saidas.toFixed(0)} | Previsto R$${data.previsto.toFixed(0)} | Livre R$${saldoLivre.toFixed(0)}
+Top gastos: ${data.topCategories}. Variação: ${data.saidaChange}.
+JSON: {"insights":["msg1","msg2"]}`;
+
+  try {
+    const response = await model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.8, maxOutputTokens: 180 },
+    });
+    const text = response.response.text();
+    const clean = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const parsed = JSON.parse(clean);
+    return Array.isArray(parsed.insights) ? parsed.insights.slice(0, 3) : [];
+  } catch {
+    // Fallback sem IA se Gemini falhar
+    const msgs: string[] = [];
+    if (saldoLivre < 0) msgs.push(`${userName}, atenção: saldo projetado negativo de R$${Math.abs(saldoLivre).toFixed(0)}!`);
+    else msgs.push(`${userName}, você terá R$${saldoLivre.toFixed(0)} livre após todos os compromissos.`);
+    if (data.topCategories) msgs.push(`Seus maiores gastos: ${data.topCategories.split(',')[0].trim()}.`);
+    return msgs;
+  }
+}
+
 export async function analyzeInvoiceWithGemini(
   textOrImagePath: string,
   isImage: boolean,

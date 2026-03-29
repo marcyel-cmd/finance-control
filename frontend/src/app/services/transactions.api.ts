@@ -61,4 +61,9 @@ export const transactionsApi = {
   async getBillDetail(cardId: string, month: number, year: number) {
     return apiFetch(`/transactions/bills/${cardId}/detail?month=${month}&year=${year}`);
   },
+
+  // Rolagem de saldo: lança "Saldo em Conta" do mês anterior
+  async carryForward(month: number, year: number) {
+    return apiFetch(`/transactions/carry-forward?month=${month}&year=${year}`, { method: 'POST' });
+  },
 };

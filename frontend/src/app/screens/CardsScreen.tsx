@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, Plus, Settings2, Sparkles, FileUp, Calendar, CreditCard as CreditCardIcon, CheckCircle2, AlertTriangle, Clock, Lock, X, Check } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { Header } from '../components/layout/Header';
@@ -9,6 +9,30 @@ import { useDeviceType } from '../hooks/useDeviceType';
 import { CreditCard } from '../types';
 import { ImportInvoiceModal } from '../components/finance/ImportInvoiceModal';
 import { cardsApi } from '../services/cards.api';
+import { transactionsApi } from '../services/transactions.api';
+import { Transaction } from '../types';
+
+// Mapper: converte transação bruta da API para tipo Transaction do frontend
+function mapBillTransaction(t: any): Transaction {
+  return {
+    id: t.id,
+    type: t.type,
+    description: t.description,
+    category: t.category,
+    value: Number(t.value),
+    date: t.date?.split('T')[0] || t.date,
+    paymentMethod: t.paymentMethod || '',
+    cardId: t.cardId,
+    status: t.status,
+    recurring: t.recurring || false,
+    month: t.month,
+    year: t.year,
+    installments: t.installmentTotal,
+    installmentValue: Number(t.value),
+    currentInstallment: t.installmentNumber,
+    totalInstallmentValue: t.totalValue ? Number(t.totalValue) : undefined,
+  };
+}
 
 const formatCurrency = (v: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
@@ -423,24 +447,53 @@ function PayInvoiceModal({ card, billTotal, billLabel, invoiceInfo, onConfirm, o
 // ─── Card Detail ──────────────────────────────────────────────────────────────
 
 function CardDetail({ card, onBack }: { card: CreditCard; onBack: () => void }) {
-  const { transactions, categories, updateCard, showToast } = useApp();
+  const { categories, showToast } = useApp();
   const [billMonth, setBillMonth] = useState({ month: new Date().getMonth() + 1, year: new Date().getFullYear() });
   const [showImportModal, setShowImportModal] = useState(false);
   const [showPayModal, setShowPayModal] = useState(false);
-  const [paidBills, setPaidBills] = useState<Set<string>>(new Set());
+  const [loadingBill, setLoadingBill] = useState(false);
+  const [billDetail, setBillDetail] = useState<{
+    total: number;
+    transactions: Transaction[];
+    paid: boolean;
+    status: string;
+  } | null>(null);
   const invoiceTouchStartX = useRef<number | null>(null);
 
   const MONTHS_SHORT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
   const MONTHS_FULL = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
-  const cardTx = transactions.filter(
-    t => t.cardId === card.id && t.month === billMonth.month && t.year === billMonth.year
-  );
-  const billTotal = cardTx.reduce((s, t) => s + t.value, 0);
+  // ── Buscar detalhe da fatura via API ao mudar o mês ──────────────────────
+  const fetchBillDetail = useCallback(async (cardId: string, month: number, year: number) => {
+    setLoadingBill(true);
+    try {
+      const res = await transactionsApi.getBillDetail(cardId, month, year);
+      if (res.data) {
+        setBillDetail({
+          total: Number(res.data.total) || 0,
+          transactions: (res.data.transactions || []).map(mapBillTransaction),
+          paid: !!res.data.paid,
+          status: res.data.status || 'aberta',
+        });
+      } else {
+        setBillDetail({ total: 0, transactions: [], paid: false, status: 'aberta' });
+      }
+    } catch {
+      setBillDetail({ total: 0, transactions: [], paid: false, status: 'aberta' });
+    } finally {
+      setLoadingBill(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchBillDetail(card.id, billMonth.month, billMonth.year);
+  }, [card.id, billMonth.month, billMonth.year, fetchBillDetail]);
+
+  const cardTx = billDetail?.transactions || [];
+  const billTotal = billDetail?.total || 0;
+  const isPaid = billDetail?.paid || false;
 
   const invoiceInfo = getInvoiceInfo(card, billMonth);
-  const billKey = `${card.id}-${billMonth.month}-${billMonth.year}`;
-  const isPaid = paidBills.has(billKey);
 
   const prevBill = () => {
     if (billMonth.month === 1) setBillMonth({ month: 12, year: billMonth.year - 1 });
@@ -466,7 +519,8 @@ function CardDetail({ card, onBack }: { card: CreditCard; onBack: () => void }) 
   const handlePayInvoice = async () => {
     try {
       await cardsApi.payBill(card.id, billMonth.month, billMonth.year);
-      setPaidBills(prev => new Set(prev).add(billKey));
+      // Recarregar detalhe da fatura para refletir pagamento
+      await fetchBillDetail(card.id, billMonth.month, billMonth.year);
       showToast({
         type: 'success',
         title: 'Fatura paga com sucesso!',
@@ -554,9 +608,13 @@ function CardDetail({ card, onBack }: { card: CreditCard; onBack: () => void }) 
             <div className="flex items-start justify-between mb-4">
               <div>
                 <p className="text-[#7D8590] mb-1" style={{ fontSize: '11px' }}>Valor da Fatura</p>
-                <p className={billTotal > 0 ? 'text-[#FF4757]' : 'text-[#7D8590]'} style={{ fontSize: '24px', fontWeight: 700 }}>
-                  {billTotal > 0 ? formatCurrency(billTotal) : 'R$ 0,00'}
-                </p>
+                {loadingBill ? (
+                  <div className="h-8 w-28 bg-[#30363D] rounded-lg animate-pulse" />
+                ) : (
+                  <p className={billTotal > 0 ? 'text-[#FF4757]' : 'text-[#7D8590]'} style={{ fontSize: '24px', fontWeight: 700 }}>
+                    {formatCurrency(billTotal)}
+                  </p>
+                )}
               </div>
               {/* Status badge */}
               <span
@@ -719,6 +777,23 @@ export function CardsScreen() {
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [showImportModal, setShowImportModal] = useState(false);
+  // Fatura atual do cartão ativo
+  const [currentBillTotal, setCurrentBillTotal] = useState<number | null>(null);
+  const [loadingCurrentBill, setLoadingCurrentBill] = useState(false);
+
+  const currentCard = cards[activeIndex] ?? null;
+
+  // Buscar fatura do mês atual do cartão ativo
+  useEffect(() => {
+    if (!currentCard) { setCurrentBillTotal(null); return; }
+    const now = new Date();
+    setLoadingCurrentBill(true);
+    setCurrentBillTotal(null);
+    transactionsApi.getBillDetail(currentCard.id, now.getMonth() + 1, now.getFullYear())
+      .then(res => { if (res.data) setCurrentBillTotal(Number(res.data.total) || 0); })
+      .catch(() => setCurrentBillTotal(0))
+      .finally(() => setLoadingCurrentBill(false));
+  }, [currentCard?.id]);
 
   // Always get fresh card data from context
   const selectedCard = selectedCardId ? cards.find(c => c.id === selectedCardId) || null : null;
@@ -737,8 +812,6 @@ export function CardsScreen() {
   const totalAvailable = totalLimit - totalUsed;
   const overallPercent = totalLimit > 0 ? (totalUsed / totalLimit) * 100 : 0;
   const overallColor = overallPercent > 80 ? '#FF4757' : overallPercent > 60 ? '#FFA502' : '#00D97E';
-
-  const currentCard = cards[activeIndex] ?? null;
 
   return (
     <div className="flex flex-col">
@@ -773,6 +846,42 @@ export function CardsScreen() {
             <div className="px-4">
               {currentCard && <UsageMeter card={currentCard} />}
             </div>
+
+            {/* Fatura atual do cartão ativo */}
+            {currentCard && (
+              <div className="px-4">
+                <div
+                  className="rounded-2xl p-4 flex items-center justify-between"
+                  style={{ background: '#161B22', border: '1px solid #30363D' }}
+                >
+                  <div>
+                    <p className="text-[#7D8590]" style={{ fontSize: '11px', marginBottom: 2 }}>
+                      Fatura Atual — {new Date().toLocaleString('pt-BR', { month: 'long', year: 'numeric' })}
+                    </p>
+                    {loadingCurrentBill ? (
+                      <div className="h-6 w-24 bg-[#30363D] rounded-md animate-pulse" />
+                    ) : (
+                      <p
+                        style={{
+                          fontSize: '22px',
+                          fontWeight: 700,
+                          color: (currentBillTotal ?? 0) > 0 ? '#FF4757' : '#7D8590',
+                        }}
+                      >
+                        {formatCurrency(currentBillTotal ?? 0)}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setSelectedCardId(currentCard.id)}
+                    className="px-3 py-2 rounded-xl text-[#00D97E] transition-all active:scale-95"
+                    style={{ fontSize: '12px', fontWeight: 600, background: 'rgba(0,217,126,0.1)', border: '1px solid rgba(0,217,126,0.25)' }}
+                  >
+                    Ver detalhe →
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* View bill button */}
             <div className="px-4 flex flex-col gap-2">

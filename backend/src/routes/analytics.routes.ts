@@ -10,5 +10,6 @@ analyticsRouter.get('/monthly',    (req, res, next) => analyticsController.month
 analyticsRouter.get('/categories', (req, res, next) => analyticsController.categories(req, res, next));
 analyticsRouter.get('/projection', (req, res, next) => analyticsController.projection(req, res, next));
 analyticsRouter.get('/comparison', (req, res, next) => analyticsController.comparison(req, res, next));
+analyticsRouter.get('/insights',   (req, res, next) => analyticsController.insights(req, res, next));
 
 export { analyticsRouter };

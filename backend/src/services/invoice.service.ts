@@ -65,6 +65,7 @@ async parse(filePath: string, _mime: string, _userId: string) {
     if (!card) throw new AppError(404, 'Cart\u00E3o n\u00E3o encontrado');
 
     const created = [];
+    const skipped: { description: string; reason: string }[] = [];
 
     for (const tx of transactions) {
       const dateObj = new Date(tx.date + 'T12:00:00');
@@ -78,6 +79,24 @@ async parse(filePath: string, _mime: string, _userId: string) {
         billMonth += 1;
         if (billMonth > 12) { billMonth = 1; billYear += 1; }
       }
+
+      // ── Validação de duplicidade: janela de ±2 dias ──────────────────────
+      const dupFrom = new Date(dateObj.getTime() - 2 * 86400000);
+      const dupTo   = new Date(dateObj.getTime() + 2 * 86400000);
+      const duplicate = await prisma.transaction.findFirst({
+        where: {
+          userId,
+          cardId,
+          description: String(tx.description).toUpperCase(),
+          value: Number(tx.value),
+          date: { gte: dupFrom, lte: dupTo },
+        },
+      });
+      if (duplicate) {
+        skipped.push({ description: tx.description, reason: 'Duplicado (já lançado anteriormente)' });
+        continue;
+      }
+      // ────────────────────────────────────────────────────────────────────
 
       const t = await prisma.transaction.create({
         data: {
@@ -97,13 +116,21 @@ async parse(filePath: string, _mime: string, _userId: string) {
       created.push(t);
     }
 
-    const totalImported = transactions.reduce((s, t) => s + Number(t.value), 0);
-    await prisma.creditCard.update({
-      where: { id: cardId },
-      data: { used: { increment: totalImported } },
-    });
+    const totalImported = created.reduce((s, t) => s + Number(t.value), 0);
+    if (totalImported > 0) {
+      await prisma.creditCard.update({
+        where: { id: cardId },
+        data: { used: { increment: totalImported } },
+      });
+    }
 
-    return { imported: created.length, total: totalImported, transactions: created };
+    return {
+      imported: created.length,
+      skipped: skipped.length,
+      skippedItems: skipped,
+      total: totalImported,
+      transactions: created,
+    };
   }
 }
 

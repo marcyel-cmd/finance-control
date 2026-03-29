@@ -1,5 +1,5 @@
-import React from 'react';
-import { Outlet } from 'react-router';
+import React, { useRef } from 'react';
+import { Outlet, useNavigate, useLocation } from 'react-router';
 import { BottomNav } from './BottomNav';
 import { Sidebar } from './Sidebar';
 import { AnimatedOutlet } from './AnimatedOutlet';
@@ -10,9 +10,52 @@ import { ToastContainer } from '../ui/ToastContainer';
 import { useApp } from '../../context/AppContext';
 import { useDeviceType } from '../../hooks/useDeviceType';
 
+// Ordem das abas para navegação por swipe
+const SWIPE_NAV_PATHS = ['/', '/transacoes', '/cartoes', '/analises', '/mais'];
+
+// Threshold mínimo em px para considerar swipe (evita conflito com scroll)
+const SWIPE_THRESHOLD = 55;
+
 export function MobileShell() {
   const { showAddModal, setShowAddModal, showManageCards, setShowManageCards } = useApp();
   const deviceType = useDeviceType();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // ── Swipe navigation ──────────────────────────────────────────────────────
+  const swipeStartX = useRef<number | null>(null);
+  const swipeStartY = useRef<number | null>(null);
+
+  const handleSwipeStart = (e: React.TouchEvent) => {
+    swipeStartX.current = e.touches[0].clientX;
+    swipeStartY.current = e.touches[0].clientY;
+  };
+
+  const handleSwipeEnd = (e: React.TouchEvent) => {
+    if (swipeStartX.current === null || swipeStartY.current === null) return;
+    const dx = e.changedTouches[0].clientX - swipeStartX.current;
+    const dy = Math.abs(e.changedTouches[0].clientY - swipeStartY.current);
+
+    // Só navega se o swipe for predominantemente horizontal e acima do threshold
+    if (Math.abs(dx) < SWIPE_THRESHOLD || dy > Math.abs(dx) * 0.75) {
+      swipeStartX.current = null;
+      swipeStartY.current = null;
+      return;
+    }
+
+    const currentIndex = SWIPE_NAV_PATHS.indexOf(location.pathname);
+    if (currentIndex === -1) { swipeStartX.current = null; swipeStartY.current = null; return; }
+
+    if (dx < -SWIPE_THRESHOLD && currentIndex < SWIPE_NAV_PATHS.length - 1) {
+      navigate(SWIPE_NAV_PATHS[currentIndex + 1]);
+    } else if (dx > SWIPE_THRESHOLD && currentIndex > 0) {
+      navigate(SWIPE_NAV_PATHS[currentIndex - 1]);
+    }
+
+    swipeStartX.current = null;
+    swipeStartY.current = null;
+  };
+  // ──────────────────────────────────────────────────────────────────────────
 
   // Desktop layout with sidebar
   if (deviceType === 'desktop') {
@@ -46,12 +89,17 @@ export function MobileShell() {
 
   return (
     <div className="min-h-screen bg-[#0D1117] flex justify-center overflow-x-hidden">
-      <div 
+      <div
         className="w-full min-h-screen bg-[#0D1117] flex flex-col relative overflow-x-hidden"
         style={{ maxWidth }}
       >
-        {/* Main content */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden pb-20" style={{ scrollbarWidth: 'none' }}>
+        {/* Main content — swipe entre abas */}
+        <div
+          className="flex-1 overflow-y-auto overflow-x-hidden pb-20"
+          style={{ scrollbarWidth: 'none' }}
+          onTouchStart={handleSwipeStart}
+          onTouchEnd={handleSwipeEnd}
+        >
           <AnimatedOutlet />
         </div>
 

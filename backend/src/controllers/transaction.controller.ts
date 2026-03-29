@@ -85,6 +85,16 @@ export class TransactionController {
       res.json({ success: true, ...result });
     } catch (error) { next(error); }
   }
+
+  // Rolagem de saldo: lança "Saldo em Conta" do mês anterior no mês atual
+  async carryForward(req: Request, res: Response, next: NextFunction) {
+    try {
+      const month = Number(req.query.month) || new Date().getMonth() + 1;
+      const year  = Number(req.query.year)  || new Date().getFullYear();
+      const result = await transactionService.carryForwardBalance(req.user!.userId, month, year);
+      res.json({ success: true, data: result });
+    } catch (error) { next(error); }
+  }
 }
 
 export const transactionController = new TransactionController();

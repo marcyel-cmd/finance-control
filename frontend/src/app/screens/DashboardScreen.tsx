@@ -241,6 +241,116 @@ function HomeCardCarousel({ cards, onNavigate }: { cards: CreditCard[]; onNaviga
 
 // ─── Dashboard Screen ─────────────────────────────────────────────────────────
 
+// ── AI Insights Widget ────────────────────────────────────────────────────────
+function AIInsightsWidget({ month, year }: { month: number; year: number }) {
+  const [insights, setInsights] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    // Só mostra a partir do dia 5 do mês (dados suficientes)
+    const today = new Date();
+    if (today.getDate() < 5 || dismissed) { setVisible(false); return; }
+    setVisible(true);
+
+    // Usar cache simples por sessão para não chamar Gemini repetidamente
+    const cacheKey = `ai_insights_${month}_${year}`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      try { setInsights(JSON.parse(cached)); return; } catch {}
+    }
+
+    setLoading(true);
+    analyticsApi.insights(month, year)
+      .then(res => {
+        if (res.data?.insights?.length) {
+          setInsights(res.data.insights);
+          sessionStorage.setItem(cacheKey, JSON.stringify(res.data.insights));
+        }
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [month, year, dismissed]);
+
+  if (!visible || dismissed) return null;
+  if (loading) {
+    return (
+      <div className="rounded-2xl p-4 flex items-center gap-3"
+        style={{ background: 'linear-gradient(135deg, rgba(168,85,247,0.1), rgba(74,144,217,0.08))', border: '1px solid rgba(168,85,247,0.2)' }}>
+        <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+          style={{ background: 'rgba(168,85,247,0.15)' }}>
+          <span style={{ fontSize: '16px' }}>✨</span>
+        </div>
+        <div className="flex-1">
+          <div className="h-3 w-3/4 bg-[#30363D] rounded animate-pulse mb-2" />
+          <div className="h-3 w-1/2 bg-[#30363D] rounded animate-pulse" />
+        </div>
+      </div>
+    );
+  }
+  if (!insights.length) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
+      className="rounded-2xl p-4 flex flex-col gap-3"
+      style={{ background: 'linear-gradient(135deg, rgba(168,85,247,0.1), rgba(74,144,217,0.08))', border: '1px solid rgba(168,85,247,0.2)' }}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'rgba(168,85,247,0.15)' }}>
+            <span style={{ fontSize: '14px' }}>✨</span>
+          </div>
+          <span className="text-[#A855F7]" style={{ fontSize: '12px', fontWeight: 600 }}>IA Financeira</span>
+        </div>
+        <button
+          onClick={() => setDismissed(true)}
+          className="text-[#484F58] hover:text-[#7D8590] transition-colors"
+          style={{ fontSize: '16px', lineHeight: 1 }}
+        >
+          ×
+        </button>
+      </div>
+
+      {/* Bubbles */}
+      <div className="flex flex-col gap-2">
+        {insights.map((msg, i) => (
+          <motion.div
+            key={i}
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: i * 0.12, duration: 0.35 }}
+            className="flex items-start gap-2"
+          >
+            {/* Avatar bolha */}
+            <div className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center mt-0.5"
+              style={{ background: 'rgba(168,85,247,0.2)', fontSize: '11px' }}>
+              🤖
+            </div>
+            {/* Mensagem bolha */}
+            <div
+              className="rounded-2xl rounded-tl-sm px-3 py-2 flex-1"
+              style={{
+                background: 'rgba(168,85,247,0.12)',
+                border: '1px solid rgba(168,85,247,0.15)',
+                fontSize: '12px',
+                color: '#C9D1D9',
+                lineHeight: 1.45,
+              }}
+            >
+              {msg}
+            </div>
+          </motion.div>
+        ))}
+      </div>
+    </motion.div>
+  );
+}
+
 export function DashboardScreen() {
   const { period, summary: ctxSummary, getFilteredTransactions, cards, setShowManageCards } = useApp();
   const summary = ctxSummary || { entradas: 0, saidas: 0, saldo: 0, previsto: 0 };
@@ -269,12 +379,15 @@ export function DashboardScreen() {
     return ((current.saidas - prev.saidas) / prev.saidas) * 100;
   }, [monthlyData, period.month, period.year, prevMonthNum, prevYear]);
 
+  // Saldo Projetado = Entradas - Saídas realizadas - Previsto restante
+  const saldoProjetado = summary.entradas - summary.saidas - summary.previsto;
+
   // Summary Cards
   const summaryCards = (
     <>
       <SummaryCard title="Entradas do Mês" value={summary.entradas} type="entrada" index={0} />
       <SummaryCard title="Saídas Mês" value={summary.saidas} type="saida" trend={saidasTrend} index={1} />
-      <SummaryCard title="Saldo do Mês" value={summary.saldo} type="saldo" index={2} />
+      <SummaryCard title="Saldo Projetado" value={saldoProjetado} type="saldo" index={2} />
       <SummaryCard title="Previsto" value={summary.previsto} type="previsto" index={3} />
     </>
   );
@@ -457,6 +570,10 @@ export function DashboardScreen() {
     </AnimatedSection>
   );
 
+  const aiInsightsWidget = (
+    <AIInsightsWidget month={period.month} year={period.year} />
+  );
+
   return (
     <div className="flex flex-col">
       <Header title="FinanceControl" subtitle="Controle Financeiro Pessoal" />
@@ -468,6 +585,7 @@ export function DashboardScreen() {
           creditCards={creditCardsWidget}
           predictedExpenses={predictedExpensesWidget}
           recentTransactions={recentTransactionsWidget}
+          aiInsights={aiInsightsWidget}
         />
       </div>
     </div>

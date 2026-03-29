@@ -87,14 +87,19 @@ export function AnalyticsScreen() {
     }));
   }, []);
 
-  // Card spending for comparison
+  // Card spending for comparison — usa gastos do período atual (não card.used que é saldo total)
   const cardData = useMemo(() => {
-    return cards.map(card => ({
-      name: card.name,
-      value: card.used,
-      color: card.color,
-    })).filter(c => c.value > 0);
-  }, [cards]);
+    return cards.map(card => {
+      const cardMonthlySpending = transactions
+        .filter(t =>
+          t.cardId === card.id &&
+          ['saida', 'saida_futura'].includes(t.type) &&
+          t.status === 'realizado'
+        )
+        .reduce((s, t) => s + t.value, 0);
+      return { name: card.name, value: cardMonthlySpending, color: card.color };
+    }).filter(c => c.value > 0);
+  }, [cards, transactions]);
 
   const currentMonthData = monthlyData.find(d => d.monthNum === period.month && d.year === period.year);
   const avgSaidas = monthlyData.reduce((s, d) => s + d.saidas, 0) / monthlyData.length;
