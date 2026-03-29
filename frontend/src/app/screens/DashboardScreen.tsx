@@ -255,7 +255,7 @@ function AIInsightsWidget({ month, year }: { month: number; year: number }) {
     setVisible(true);
 
     // Usar cache simples por sessão para não chamar Gemini repetidamente
-    const cacheKey = `ai_insights_${month}_${year}`;
+    const cacheKey = `ai_insights_v2_${month}_${year}`;
     const cached = sessionStorage.getItem(cacheKey);
     if (cached) {
       try { setInsights(JSON.parse(cached)); return; } catch {}

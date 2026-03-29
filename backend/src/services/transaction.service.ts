@@ -491,8 +491,17 @@ export class TransactionService {
     const card = await prisma.creditCard.findFirst({ where: { id: cardId, userId } });
     if (!card) throw new AppError(404, 'Cart\u00E3o n\u00E3o encontrado');
 
+    // Inclui transações com billMonth/billYear explícito OU sem esses campos (usa month/year como fallback)
+    // Garante que transações manuais sem billMonth definido apareçam corretamente na fatura
     const txs = await prisma.transaction.findMany({
-      where: { userId, cardId, billMonth, billYear, type: { not: 'pagamento_fatura' } },
+      where: {
+        userId, cardId,
+        type: { not: 'pagamento_fatura' },
+        OR: [
+          { billMonth, billYear },
+          { billMonth: null, month: billMonth, year: billYear },
+        ],
+      },
       orderBy: { date: 'desc' },
     });
     const total   = txs.reduce((s, t) => s + Number(t.value), 0);

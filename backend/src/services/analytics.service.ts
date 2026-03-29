@@ -121,13 +121,25 @@ export class AnalyticsService {
       .filter(t => t.status === 'previsto' || t.type === 'previsto')
       .reduce((s, t) => s + Number(t.value), 0);
 
-    // Top 3 categorias de gastos (compact)
+    // Top 3 categorias de gastos com labels legíveis
+    const userCategories = await prisma.category.findMany({ where: { userId } });
+    const catLabelMap = new Map(userCategories.map(c => [c.id, c.label]));
+
     const catMap = new Map<string, number>();
     txs.filter(t => ['saida', 'saida_futura'].includes(t.type) && t.status === 'realizado')
       .forEach(t => catMap.set(t.category, (catMap.get(t.category) || 0) + Number(t.value)));
-    const topCats = Array.from(catMap.entries())
-      .sort((a, b) => b[1] - a[1]).slice(0, 3)
-      .map(([cat, val]) => `${cat} R$${val.toFixed(0)}`).join(', ');
+
+    const sortedCats = Array.from(catMap.entries()).sort((a, b) => b[1] - a[1]);
+    const topCats = sortedCats.slice(0, 3)
+      .map(([cat, val]) => {
+        const label = catLabelMap.get(cat) || cat;
+        const pct = saidas > 0 ? ((val / saidas) * 100).toFixed(0) : '0';
+        return `${label} R$${val.toFixed(2)} (${pct}%)`;
+      }).join(', ');
+
+    const topExpense = sortedCats.length > 0
+      ? `${catLabelMap.get(sortedCats[0][0]) || sortedCats[0][0]} R$${sortedCats[0][1].toFixed(2)}`
+      : 'sem dados';
 
     // Variação vs mês anterior
     let pm = month - 1, py = year;
@@ -143,7 +155,10 @@ export class AnalyticsService {
     const { generateFinancialInsights } = await import('../lib/gemini');
     const insights = await generateFinancialInsights(userName, {
       month: `${MONTH_SHORT[month - 1]}/${year}`,
-      entradas, saidas, previsto, topCategories: topCats || 'sem dados', saidaChange,
+      entradas, saidas, previsto,
+      topCategories: topCats || 'sem dados',
+      saidaChange,
+      topExpense,
     });
 
     return { insights, generatedAt: new Date().toISOString() };

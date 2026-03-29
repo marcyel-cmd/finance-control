@@ -24,8 +24,7 @@ export interface AnalysisResult {
   };
 }
 
-// ── Geração de insights financeiros compactos ─────────────────────────────────
-// Otimizado para token mínimo: prompt curto + maxOutputTokens baixo
+// ── Geração de insights financeiros personalizados ────────────────────────────
 
 export async function generateFinancialInsights(
   userName: string,
@@ -34,33 +33,58 @@ export async function generateFinancialInsights(
     entradas: number;
     saidas: number;
     previsto: number;
-    topCategories: string;
-    saidaChange: string;
+    topCategories: string;   // "Alimentação R$320 (35%), Transporte R$180 (20%)"
+    saidaChange: string;     // "+12%" ou "-5%" vs mês anterior
+    topExpense: string;      // Maior categoria isolada: "Alimentação R$320"
   }
 ): Promise<string[]> {
   const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
   const saldoLivre = data.entradas - data.saidas - data.previsto;
+  const percentoGasto = data.entradas > 0 ? ((data.saidas / data.entradas) * 100).toFixed(0) : '0';
 
-  const prompt = `Assistente financeiro pessoal de ${userName}. Gere 2 mensagens curtas (máx 90 chars cada), diretas e com nome.
-Dados ${data.month}: Entradas R$${data.entradas.toFixed(0)} | Saídas R$${data.saidas.toFixed(0)} | Previsto R$${data.previsto.toFixed(0)} | Livre R$${saldoLivre.toFixed(0)}
-Top gastos: ${data.topCategories}. Variação: ${data.saidaChange}.
-JSON: {"insights":["msg1","msg2"]}`;
+  const prompt = `Você é o assistente financeiro pessoal de ${userName}.
+
+Dados reais de ${data.month}:
+• Entradas: R$${data.entradas.toFixed(2)}
+• Saídas realizadas: R$${data.saidas.toFixed(2)} (${percentoGasto}% da renda)
+• Gastos ainda pendentes: R$${data.previsto.toFixed(2)}
+• Saldo livre estimado: R$${saldoLivre.toFixed(2)}
+• Variação nos gastos vs mês anterior: ${data.saidaChange}
+• Top categorias: ${data.topCategories}
+• Maior gasto: ${data.topExpense}
+
+Gere exatamente 3 insights ESPECÍFICOS e ACIONÁVEIS sobre esses dados reais.
+Regras:
+- Use valores exatos dos dados acima (ex: "R$320 em Alimentação")
+- Seja direto e objetivo, sem enrolação
+- Máximo 110 caracteres por insight
+- Use o nome ${userName} apenas no 1º insight
+- Se gastos > 80% da renda ou saldo negativo: alerte com urgência
+- Se variação > +20%: mencione o aumento específico
+- Sugira uma ação concreta (ex: "Revise gastos com X")
+
+Responda APENAS em JSON válido: {"insights":["texto1","texto2","texto3"]}`;
 
   try {
     const response = await model.generateContent({
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.8, maxOutputTokens: 180 },
+      generationConfig: { temperature: 0.7, maxOutputTokens: 300 },
     });
     const text = response.response.text();
-    const clean = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    const parsed = JSON.parse(clean);
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error('No JSON found');
+    const parsed = JSON.parse(match[0]);
     return Array.isArray(parsed.insights) ? parsed.insights.slice(0, 3) : [];
   } catch {
     // Fallback sem IA se Gemini falhar
     const msgs: string[] = [];
-    if (saldoLivre < 0) msgs.push(`${userName}, atenção: saldo projetado negativo de R$${Math.abs(saldoLivre).toFixed(0)}!`);
-    else msgs.push(`${userName}, você terá R$${saldoLivre.toFixed(0)} livre após todos os compromissos.`);
-    if (data.topCategories) msgs.push(`Seus maiores gastos: ${data.topCategories.split(',')[0].trim()}.`);
+    if (saldoLivre < 0) {
+      msgs.push(`${userName}, atenção: saldo projetado negativo de R$${Math.abs(saldoLivre).toFixed(2)}!`);
+    } else {
+      msgs.push(`${userName}, saldo livre estimado de R$${saldoLivre.toFixed(2)} em ${data.month}.`);
+    }
+    if (data.topExpense) msgs.push(`Maior gasto: ${data.topExpense}. Avalie se pode reduzir.`);
+    if (data.saidaChange !== 'sem dados') msgs.push(`Gastos variaram ${data.saidaChange} vs mês anterior.`);
     return msgs;
   }
 }

@@ -121,7 +121,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           type: t.type,
           description: t.description,
           category: t.category,
-          value: t.value,
+          // Prisma Decimal serializa como string — converter para number aqui centralizadamente
+          value: Number(t.value) || 0,
           date: t.date?.split('T')[0] || t.date,
           paymentMethod: t.paymentMethod || t.payment_method,
           cardId: t.cardId || t.card_id,
@@ -131,9 +132,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
           month: t.month,
           year: t.year,
           installments: t.installmentTotal || t.installment_total,
-          installmentValue: t.value,
+          installmentValue: Number(t.value) || 0,
           currentInstallment: t.installmentNumber || t.installment_number,
-          totalInstallmentValue: t.totalValue || t.total_value,
+          totalInstallmentValue: Number(t.totalValue ?? t.total_value) || 0,
         }));
         setTransactions(mapped);
       }
@@ -145,7 +146,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const loadCards = useCallback(async () => {
     try {
       const res = await cardsApi.list();
-      if (res.data) setCards(res.data);
+      if (res.data) {
+        // Prisma Decimal → string: normalizar campos numéricos dos cartões
+        const parsed = res.data.map((c: any) => ({
+          ...c,
+          limit: Number(c.limit) || 0,
+          used: Number(c.used) || 0,
+        }));
+        setCards(parsed);
+      }
     } catch (err) {
       console.error('Erro ao carregar cartões:', err);
     }
