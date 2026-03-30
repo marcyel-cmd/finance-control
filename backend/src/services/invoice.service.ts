@@ -60,7 +60,13 @@ async parse(filePath: string, _mime: string, _userId: string) {
   }
 }
 
-  async importTransactions(userId: string, cardId: string, transactions: any[]) {
+  async importTransactions(
+    userId: string,
+    cardId: string,
+    transactions: any[],
+    forceBillMonth?: number,
+    forceBillYear?: number,
+  ) {
     const card = await prisma.creditCard.findFirst({ where: { id: cardId, userId } });
     if (!card) throw new AppError(404, 'Cart\u00E3o n\u00E3o encontrado');
 
@@ -73,11 +79,20 @@ async parse(filePath: string, _mime: string, _userId: string) {
       const year    = dateObj.getFullYear();
       const day     = dateObj.getDate();
 
-      let billMonth = month;
-      let billYear  = year;
-      if (day > card.closingDay) {
-        billMonth += 1;
-        if (billMonth > 12) { billMonth = 1; billYear += 1; }
+      // Se um mês de fatura foi informado explicitamente (importação de fatura específica),
+      // usa ele diretamente — evita que transações próximas ao fechamento caiam no mês errado
+      let billMonth: number;
+      let billYear: number;
+      if (forceBillMonth && forceBillYear) {
+        billMonth = forceBillMonth;
+        billYear  = forceBillYear;
+      } else {
+        billMonth = month;
+        billYear  = year;
+        if (day > card.closingDay) {
+          billMonth += 1;
+          if (billMonth > 12) { billMonth = 1; billYear += 1; }
+        }
       }
 
       // ── Validação de duplicidade: janela de ±2 dias ──────────────────────

@@ -1,5 +1,8 @@
 -- Migration: Float → Decimal para campos monetários
 -- Evita erros de arredondamento em ponto flutuante (IEEE 754)
+-- Nota: requer que o usuário do banco seja owner das tabelas.
+-- Se necessário, executar como superuser:
+--   sudo -u postgres psql -d financecontrol -f migration.sql
 
 -- credit_cards
 ALTER TABLE "credit_cards"

@@ -752,6 +752,8 @@ function CardDetail({ card, onBack }: { card: CreditCard; onBack: () => void }) 
         <ImportInvoiceModal
           onClose={() => setShowImportModal(false)}
           preselectedCardId={card.id}
+          billMonth={billMonth.month}
+          billYear={billMonth.year}
         />
       )}
 

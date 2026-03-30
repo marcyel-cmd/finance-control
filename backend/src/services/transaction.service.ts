@@ -491,19 +491,28 @@ export class TransactionService {
     const card = await prisma.creditCard.findFirst({ where: { id: cardId, userId } });
     if (!card) throw new AppError(404, 'Cart\u00E3o n\u00E3o encontrado');
 
-    // Inclui transações com billMonth/billYear explícito OU sem esses campos (usa month/year como fallback)
-    // Garante que transações manuais sem billMonth definido apareçam corretamente na fatura
-    const txs = await prisma.transaction.findMany({
-      where: {
-        userId, cardId,
-        type: { not: 'pagamento_fatura' },
-        OR: [
-          { billMonth, billYear },
-          { billMonth: null, month: billMonth, year: billYear },
-        ],
-      },
+    // 1) Transações com billMonth/billYear explicitamente definidos
+    const explicitTxs = await prisma.transaction.findMany({
+      where: { userId, cardId, billMonth, billYear, type: { not: 'pagamento_fatura' } },
       orderBy: { date: 'desc' },
     });
+
+    // 2) Transações legadas sem billMonth: recalcula período correto a partir de date + closingDay
+    const nullBillTxs = await prisma.transaction.findMany({
+      where: { userId, cardId, billMonth: null, type: { not: 'pagamento_fatura' } },
+    });
+    const legacyTxs = nullBillTxs.filter(t => {
+      const { billMonth: bm, billYear: by } = getBillPeriod(new Date(t.date), card.closingDay);
+      return bm === billMonth && by === billYear;
+    });
+
+    // Combina sem duplicatas e ordena por data descendente
+    const explicitIds = new Set(explicitTxs.map(t => t.id));
+    const txs = [
+      ...explicitTxs,
+      ...legacyTxs.filter(t => !explicitIds.has(t.id)),
+    ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
     const total   = txs.reduce((s, t) => s + Number(t.value), 0);
     const payment = await prisma.transaction.findFirst({
       where: { userId, cardId, billMonth, billYear, type: 'pagamento_fatura' },

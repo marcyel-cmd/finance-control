@@ -11,6 +11,8 @@ import { invoiceApi } from '../../services/invoice.api';
 interface Props {
   onClose: () => void;
   preselectedCardId?: string;
+  billMonth?: number;
+  billYear?: number;
 }
 
 interface ParsedTransaction {
@@ -295,7 +297,7 @@ function ProcessingAnimation({ progress, stage }: { progress: number; stage: str
 
 // ─── Main Modal ──────────────────────────────────────────────────────────────
 
-export function ImportInvoiceModal({ onClose, preselectedCardId }: Props) {
+export function ImportInvoiceModal({ onClose, preselectedCardId, billMonth, billYear }: Props) {
   const { cards, categories, showToast, refreshData } = useApp();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -418,7 +420,9 @@ export function ImportInvoiceModal({ onClose, preselectedCardId }: Props) {
           value: t.value,
           date: t.date,
           categoryId: t.categoryId,
-        }))
+        })),
+        billMonth,
+        billYear,
       );
       setAddedCount(result.data?.imported || toImport.length);
       setStep('success');

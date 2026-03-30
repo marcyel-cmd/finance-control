@@ -19,8 +19,9 @@ export class CardService {
 
   async getTransactions(userId: string, cardId: string, month?: number, year?: number) {
     const card = await this.findById(userId, cardId);
-    const where: any = { userId, cardId };
-    if (month && year) { where.month = month; where.year = year; }
+    const where: any = { userId, cardId, type: { not: 'pagamento_fatura' } };
+    // Filtra por billMonth/billYear (mês da fatura), não pelo mês da data da transação
+    if (month && year) { where.billMonth = month; where.billYear = year; }
 
     const transactions = await prisma.transaction.findMany({
       where,

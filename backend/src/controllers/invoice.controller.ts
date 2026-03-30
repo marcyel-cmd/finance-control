@@ -15,11 +15,17 @@ export class InvoiceController {
 
   async import(req: Request, res: Response, next: NextFunction) {
     try {
-      const { transactions, cardId } = req.body;
+      const { transactions, cardId, billMonth, billYear } = req.body;
       if (!transactions?.length || !cardId) {
         return res.status(400).json({ success: false, error: 'transactions e cardId s\u00E3o obrigat\u00F3rios' });
       }
-      const result = await invoiceService.importTransactions(req.user!.userId, cardId, transactions);
+      const result = await invoiceService.importTransactions(
+        req.user!.userId,
+        cardId,
+        transactions,
+        billMonth ? Number(billMonth) : undefined,
+        billYear  ? Number(billYear)  : undefined,
+      );
       res.json({ success: true, data: result });
     } catch (error) { next(error); }
   }

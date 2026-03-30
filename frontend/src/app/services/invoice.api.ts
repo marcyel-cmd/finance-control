@@ -27,12 +27,15 @@ export const invoiceApi = {
     return apiUpload<{ success: boolean; data: ParseResult }>('/invoice/parse', formData);
   },
 
-  async importTransactions(cardId: string, transactions: Array<{
-    description: string; value: number; date: string; categoryId: string;
-  }>) {
+  async importTransactions(
+    cardId: string,
+    transactions: Array<{ description: string; value: number; date: string; categoryId: string }>,
+    billMonth?: number,
+    billYear?: number,
+  ) {
     return apiFetch<{ success: boolean; data: { imported: number; total: number } }>(
       '/invoice/import',
-      { method: 'POST', body: { cardId, transactions } }
+      { method: 'POST', body: { cardId, transactions, billMonth, billYear } }
     );
   },
 };
