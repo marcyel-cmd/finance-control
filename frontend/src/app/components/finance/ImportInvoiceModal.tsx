@@ -309,6 +309,8 @@ export function ImportInvoiceModal({ onClose, preselectedCardId, billMonth, bill
   const [parsedTransactions, setParsedTransactions] = useState<ParsedTransaction[]>([]);
   const [showCardPicker, setShowCardPicker] = useState(false);
   const [addedCount, setAddedCount] = useState(0);
+  // [IMPORT-03] FIX: guard contra duplo clique — desabilita botão enquanto request está em curso
+  const [importing, setImporting] = useState(false);
 
   const selectedCard = cards.find(c => c.id === selectedCardId);
 
@@ -411,7 +413,10 @@ export function ImportInvoiceModal({ onClose, preselectedCardId, billMonth, bill
   const selectedCount = parsedTransactions.filter(t => t.selected).length;
 
   const handleConfirmImport = async () => {
+    // [IMPORT-03] FIX: evitar duplo clique que causaria importação duplicada
+    if (importing) return;
     const toImport = parsedTransactions.filter(t => t.selected);
+    setImporting(true);
     try {
       const result = await invoiceApi.importTransactions(
         selectedCardId,
@@ -424,13 +429,16 @@ export function ImportInvoiceModal({ onClose, preselectedCardId, billMonth, bill
         billMonth,
         billYear,
       );
-      setAddedCount(result.data?.imported || toImport.length);
+      const importedCount = result.data?.imported || toImport.length;
+      setAddedCount(importedCount);
+      // [IMPORT-02] FIX: aguardar refreshData antes de avançar para step 'success',
+      // para que cartões e transações reflitam os valores atualizados na tela de confirmação
+      await refreshData();
       setStep('success');
-      await refreshData(); 
       showToast({
         type: 'success',
         title: 'Fatura importada com IA',
-        message: `${result.data?.imported || toImport.length} transações adicionadas ao ${selectedCard?.name || 'cartão'}`,
+        message: `${importedCount} transações adicionadas ao ${selectedCard?.name || 'cartão'}`,
         icon: '🤖',
       });
     } catch (err: any) {
@@ -440,6 +448,8 @@ export function ImportInvoiceModal({ onClose, preselectedCardId, billMonth, bill
         message: err.message || 'Tente novamente',
         icon: '❌',
       });
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -884,7 +894,7 @@ export function ImportInvoiceModal({ onClose, preselectedCardId, billMonth, bill
             </div>
             <button
               onClick={handleConfirmImport}
-              disabled={selectedCount === 0}
+              disabled={selectedCount === 0 || importing}
               className="w-full py-3.5 rounded-2xl text-white flex items-center justify-center gap-2 active:scale-[0.98] transition-all disabled:opacity-40"
               style={{
                 background: 'linear-gradient(135deg, #A855F7 0%, #4A90D9 100%)',
@@ -893,7 +903,7 @@ export function ImportInvoiceModal({ onClose, preselectedCardId, billMonth, bill
               }}
             >
               <Sparkles size={16} />
-              Importar {selectedCount} Transações
+              {importing ? 'Processando...' : `Importar ${selectedCount} Transações`}
             </button>
           </div>
         )}

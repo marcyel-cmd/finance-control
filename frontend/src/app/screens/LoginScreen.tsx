@@ -322,11 +322,12 @@ function ForgotPasswordModal({ onClose }: { onClose: () => void }) {
     codeRefs.current[focusIdx]?.focus();
   };
 
+  // [LOGIN-01] FIX: fluxo de recuperação de senha era 100% simulado com setTimeout —
+  // nenhum e-mail era enviado, nenhum código validado e a senha NUNCA era alterada no backend.
+  // O backend não possui rotas de reset de senha. Exibir mensagem honesta ao usuário.
   const handleStep1 = () => {
     if (!email.includes('@')) { setError('E-mail inválido'); return; }
-    setError('');
-    setLoading(true);
-    setTimeout(() => { setLoading(false); setStep(2); setTimer(60); }, 1500);
+    setError('Esta funcionalidade ainda não está disponível. Entre em contato com o suporte para redefinir sua senha.');
   };
 
   const handleStep2 = () => {

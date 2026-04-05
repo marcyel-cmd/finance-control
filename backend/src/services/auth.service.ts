@@ -119,7 +119,8 @@ export class AuthService {
     const valid = await bcrypt.compare(currentPassword, user.password);
     if (!valid) throw new AppError(401, 'Senha atual incorreta');
 
-    if (newPassword.length < 4) throw new AppError(400, 'Nova senha deve ter no m\u00EDnimo 4 caracteres');
+    // [AUTH-02] FIX: padronizar mínimo de 6 caracteres (frontend exige 6; backend exigia apenas 4)
+    if (newPassword.length < 6) throw new AppError(400, 'Nova senha deve ter no mínimo 6 caracteres');
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     await prisma.user.update({ where: { id: userId }, data: { password: hashedPassword } });

@@ -65,7 +65,8 @@ const formatCurrency = (v: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
 
 function timeAgo(dateStr: string) {
-  const now = new Date('2026-02-17T12:00:00');
+  // [NOTIF-02] FIX: data estava hardcoded em '2026-02-17' (esquecida do desenvolvimento)
+  const now = new Date();
   const date = new Date(dateStr + 'T12:00:00');
   const diffMs = now.getTime() - date.getTime();
   const diffMin = Math.floor(diffMs / 60000);
