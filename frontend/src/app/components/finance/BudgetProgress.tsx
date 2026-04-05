@@ -146,7 +146,8 @@ export function BudgetProgress() {
 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span style={{ fontSize: '14px', fontWeight: 700, color: '#FF4757' }}>
+                    {/* [BP-01] FIX: cor dinâmica — era sempre vermelho; agora verde/laranja/vermelho conforme uso */}
+                    <span style={{ fontSize: '14px', fontWeight: 700, color: isOverBudget ? '#FF4757' : isWarning ? '#FFA502' : '#00D97E' }}>
                       {formatCurrency(budget.spent)}
                     </span>
                     <span style={{ fontSize: '11px', color: '#7D8590' }}>

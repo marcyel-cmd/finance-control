@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Bell, Shield, Download, FileText, X, Check, Eye, EyeOff, Lock, ChevronRight } from 'lucide-react';
 import { LoadingModal } from './LoadingModal';
+import { authApi } from '../../services/auth.api';
+import { apiFetch } from '../../services/api';
 
 interface SettingsModalsProps {
   // Notifications
@@ -32,7 +34,6 @@ interface SettingsModalsProps {
   setShowConfirmPw: (val: boolean) => void;
   securityError: string;
   setSecurityError: (val: string) => void;
-  currentUserPassword?: string;
   
   // Export/Reports
   showExport: boolean;
@@ -52,6 +53,8 @@ interface SettingsModalsProps {
   
   // Callbacks
   showToast: (toast: { type: string; title: string; message: string }) => void;
+  onExportCSV?: () => void;
+  onExportJSON?: () => void;
 }
 
 export function SettingsModals(props: SettingsModalsProps) {
@@ -69,7 +72,6 @@ export function SettingsModals(props: SettingsModalsProps) {
     showNewPw, setShowNewPw,
     showConfirmPw, setShowConfirmPw,
     securityError, setSecurityError,
-    currentUserPassword,
     showExport, setShowExport,
     showReports, setShowReports,
     showExportLoading, setShowExportLoading,
@@ -77,6 +79,8 @@ export function SettingsModals(props: SettingsModalsProps) {
     exportFormat, setExportFormat,
     reportTitle, setReportTitle,
     showToast,
+    onExportCSV,
+    onExportJSON,
   } = props;
 
   return (
@@ -310,18 +314,24 @@ export function SettingsModals(props: SettingsModalsProps) {
             {/* Footer */}
             <div className="border-t border-[#30363D] p-4">
               <button
-                onClick={() => {
+                onClick={async () => {
                   if (!currentPassword) { setSecurityError('Digite sua senha atual'); return; }
-                  if (currentPassword !== currentUserPassword) { setSecurityError('Senha atual incorreta'); return; }
                   if (newPassword.length < 4) { setSecurityError('Nova senha deve ter no mínimo 4 caracteres'); return; }
                   if (newPassword !== confirmPassword) { setSecurityError('As senhas não coincidem'); return; }
-                  
-                  showToast({ type: 'success', title: 'Senha alterada!', message: 'Sua senha foi atualizada com sucesso' });
-                  setShowSecurity(false);
-                  setCurrentPassword('');
-                  setNewPassword('');
-                  setConfirmPassword('');
-                  setSecurityError('');
+                  try {
+                    await apiFetch('/auth/change-password', {
+                      method: 'POST',
+                      body: { currentPassword, newPassword },
+                    });
+                    showToast({ type: 'success', title: 'Senha alterada!', message: 'Sua senha foi atualizada com sucesso' });
+                    setShowSecurity(false);
+                    setCurrentPassword('');
+                    setNewPassword('');
+                    setConfirmPassword('');
+                    setSecurityError('');
+                  } catch (err: any) {
+                    setSecurityError(err?.message || 'Senha atual incorreta');
+                  }
                 }}
                 className="w-full py-3 rounded-xl flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
                 style={{
@@ -390,16 +400,18 @@ export function SettingsModals(props: SettingsModalsProps) {
                   key={i}
                   onClick={() => {
                     setExportFormat(option.format);
-                    setShowExportLoading(true);
-                    setTimeout(() => {
-                      showToast({ 
-                        type: 'success', 
-                        title: `Exportando ${option.format}`, 
-                        message: `Seus dados serão baixados em ${option.format}` 
+                    setShowExport(false);
+                    if (option.format === 'CSV' && onExportCSV) {
+                      onExportCSV();
+                    } else if (option.format === 'JSON' && onExportJSON) {
+                      onExportJSON();
+                    } else {
+                      showToast({
+                        type: 'info',
+                        title: `Export ${option.format}`,
+                        message: `Exportação em ${option.format} estará disponível em breve`
                       });
-                      setShowExport(false);
-                      setShowExportLoading(false);
-                    }, 2000);
+                    }
                   }}
                   className="w-full flex items-center gap-3 p-4 rounded-xl hover:scale-[1.02] active:scale-[0.98] transition-all"
                   style={{
@@ -493,26 +505,32 @@ export function SettingsModals(props: SettingsModalsProps) {
                 Selecione o tipo de relatório que deseja gerar:
               </p>
 
+              <div
+                className="flex items-center gap-2 px-3 py-2 rounded-lg mb-1"
+                style={{ background: 'rgba(255,165,2,0.08)', border: '1px solid rgba(255,165,2,0.2)' }}
+              >
+                <span style={{ fontSize: '13px' }}>🚧</span>
+                <p style={{ fontSize: '11px', color: '#FFA502' }}>
+                  Relatórios em PDF estarão disponíveis em breve. Use <strong>Exportar Dados → CSV</strong> para exportar agora.
+                </p>
+              </div>
+
               {[
-                { title: 'Relatório Mensal', desc: 'Resumo completo do mês atual', icon: '📊', color: '#4A90D9', badge: 'Recomendado' },
+                { title: 'Relatório Mensal', desc: 'Resumo completo do mês atual', icon: '📊', color: '#4A90D9', badge: 'Em breve' },
                 { title: 'Análise de Gastos', desc: 'Gráficos e insights por categoria', icon: '📈', color: '#A855F7' },
                 { title: 'Projeção Futura', desc: 'Estimativa baseada em histórico', icon: '🔮', color: '#00D97E' },
                 { title: 'Comparativo Anual', desc: 'Compare meses do ano', icon: '📅', color: '#FFA502' },
               ].map((report, i) => (
                 <button
                   key={i}
+                  disabled
                   onClick={() => {
-                    setReportTitle(report.title);
-                    setShowReportLoading(true);
-                    setTimeout(() => {
-                      showToast({ 
-                        type: 'success', 
-                        title: 'Gerando relatório', 
-                        message: `${report.title} está sendo processado` 
-                      });
-                      setShowReports(false);
-                      setShowReportLoading(false);
-                    }, 2000);
+                    showToast({
+                      type: 'info',
+                      title: 'Em breve',
+                      message: `${report.title} estará disponível em uma próxima versão`
+                    });
+                    setShowReports(false);
                   }}
                   className="w-full flex items-center gap-3 p-4 rounded-xl hover:scale-[1.02] active:scale-[0.98] transition-all"
                   style={{

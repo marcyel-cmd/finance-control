@@ -17,6 +17,7 @@ authRouter.post('/passkey/authenticate-verify',  (req, res, next) => authControl
 // Protegidas
 authRouter.get ('/me',                           authMiddleware, (req, res, next) => authController.me(req, res, next));
 authRouter.post('/logout',                       authMiddleware, (req, res) => authController.logout(req, res));
+authRouter.post('/change-password',              authMiddleware, (req, res, next) => authController.changePassword(req, res, next));
 
 // WebAuthn protegidas
 authRouter.get ('/passkey/register-options',     authMiddleware, (req, res, next) => authController.passkeyRegisterOptions(req, res, next));

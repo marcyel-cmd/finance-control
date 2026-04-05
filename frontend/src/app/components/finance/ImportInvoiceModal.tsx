@@ -576,9 +576,22 @@ export function ImportInvoiceModal({ onClose, preselectedCardId, billMonth, bill
                 <label className="text-[#7D8590] mb-2 block" style={{ fontSize: '12px', fontWeight: 500 }}>
                   Arquivo da fatura
                 </label>
+                {cards.length === 0 && (
+                  <div
+                    className="flex items-center gap-3 px-4 py-3 rounded-xl mb-3"
+                    style={{ background: 'rgba(255,165,2,0.08)', border: '1px solid rgba(255,165,2,0.25)' }}
+                  >
+                    <AlertTriangle size={16} color="#FFA502" />
+                    <p style={{ fontSize: '12px', color: '#FFA502' }}>
+                      Nenhum cartão cadastrado. Cadastre um cartão antes de importar uma fatura.
+                    </p>
+                  </div>
+                )}
                 <button
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => cards.length > 0 && fileInputRef.current?.click()}
+                  disabled={cards.length === 0}
                   className="w-full flex flex-col items-center justify-center gap-4 py-10 rounded-2xl border-2 border-dashed border-[#30363D] bg-[#161B22]/50 active:bg-[#1C2128] active:border-[#A855F7]/50 transition-all"
+                  style={{ opacity: cards.length === 0 ? 0.4 : 1, cursor: cards.length === 0 ? 'not-allowed' : 'pointer' }}
                 >
                   <div
                     className="w-16 h-16 rounded-2xl flex items-center justify-center"

@@ -23,7 +23,9 @@ const TABS: { id: TabType; label: string; color: string }[] = [
 export function EditTransactionModal({ transaction: tx, onClose }: Props) {
   const { updateTransaction, cards, categories, showToast } = useApp();
 
+  // [T-04] FIX: saida_futura é mapeada para a aba 'saida', mas preservamos o tipo original
   const initialTab: TabType = tx.type === 'saida_futura' ? 'saida' : tx.type;
+  const originalType = tx.type; // guardamos o tipo original para enviar corretamente
   const [tab, setTab] = useState<TabType>(initialTab);
   const [description, setDescription] = useState(tx.description);
   const [value, setValue] = useState(tx.value.toString().replace('.', ','));
@@ -70,8 +72,10 @@ export function EditTransactionModal({ transaction: tx, onClose }: Props) {
     if (isNaN(numValue) || numValue <= 0) return;
 
     try {
+      // [T-04] FIX: preservar saida_futura se o usuário não mudou de aba explicitamente
+      const resolvedType = (tab === 'saida' && originalType === 'saida_futura') ? 'saida_futura' : tab;
       await updateTransaction(tx.id, {
-        type: tab,
+        type: resolvedType,
         description: description.toUpperCase(),
         category,
         value: installment && showInstallment ? parsedValue : numValue,

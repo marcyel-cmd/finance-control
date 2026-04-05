@@ -14,10 +14,8 @@ const MONTHS_SHORT = [
   'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez',
 ];
 
-// Today's actual month/year
-const NOW = new Date();
-const CURRENT_MONTH = NOW.getMonth() + 1; // 1-based
-const CURRENT_YEAR  = NOW.getFullYear();
+// [HDR-01] FIX: removidas constantes de módulo — eram calculadas UMA VEZ no load e ficavam
+// congeladas (ex: app aberto passando da meia-noite do dia 1). Agora calculadas por render.
 
 interface HeaderProps {
   title: string;
@@ -30,6 +28,11 @@ interface HeaderProps {
 export function Header({ title, subtitle, showPeriod = true, rightAction, hideBell = false }: HeaderProps) {
   const { period, setPeriod, unreadCount, showNotifications, setShowNotifications } = useApp();
   const deviceType = useDeviceType();
+
+  // [HDR-01] FIX: calculado por render para não congelar no load do módulo
+  const now = new Date();
+  const CURRENT_MONTH = now.getMonth() + 1;
+  const CURRENT_YEAR  = now.getFullYear();
 
   const isCurrentMonth = period.month === CURRENT_MONTH && period.year === CURRENT_YEAR;
 

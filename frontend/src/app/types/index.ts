@@ -96,11 +96,11 @@ export interface Category {
 
 export type UserRole = 'admin' | 'user';
 
+// [A-05] FIX: removido campo 'password' do tipo frontend — nunca deve existir no cliente
 export interface AppUser {
   id: string;
   name: string;
   email: string;
-  password: string;
   role: UserRole;
   createdAt: string;
   active: boolean;

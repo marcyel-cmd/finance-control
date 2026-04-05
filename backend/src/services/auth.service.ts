@@ -112,6 +112,20 @@ export class AuthService {
     }
   }
 
+  async changePassword(userId: string, currentPassword: string, newPassword: string) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new AppError(404, 'Usu\u00E1rio n\u00E3o encontrado');
+
+    const valid = await bcrypt.compare(currentPassword, user.password);
+    if (!valid) throw new AppError(401, 'Senha atual incorreta');
+
+    if (newPassword.length < 4) throw new AppError(400, 'Nova senha deve ter no m\u00EDnimo 4 caracteres');
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await prisma.user.update({ where: { id: userId }, data: { password: hashedPassword } });
+    return { success: true };
+  }
+
   async me(userId: string) {
     const user = await prisma.user.findUnique({
       where: { id: userId },

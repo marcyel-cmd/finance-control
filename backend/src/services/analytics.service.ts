@@ -57,29 +57,30 @@ export class AnalyticsService {
   }
 
   async projection(userId: string, months = 6) {
-    const income = await prisma.transaction.findMany({
-      where: { userId, type: 'entrada', recurring: true, status: 'realizado' },
-    });
-    const expense = await prisma.transaction.findMany({
-      where: { userId, type: { in: ['saida', 'saida_futura'] }, recurring: true, status: 'realizado' },
-    });
+    // [A-02] FIX: usar média dos últimos 3 meses de recorrentes ao invés do valor máximo por descrição
+    const now = new Date();
+    const last3Months: { month: number; year: number }[] = [];
+    for (let i = 1; i <= 3; i++) {
+      let m = now.getMonth() + 1 - i;
+      let y = now.getFullYear();
+      while (m <= 0) { m += 12; y -= 1; }
+      last3Months.push({ month: m, year: y });
+    }
 
-    const byDesc = (arr: any[]) => {
-      const m = new Map<string, number>();
-      arr.forEach(t => {
-        const v = Number(t.value);
-        if (!m.has(t.description) || v > m.get(t.description)!) {
-          m.set(t.description, v);
-        }
+    let totalIncome = 0;
+    let totalExpense = 0;
+    for (const { month, year } of last3Months) {
+      const txs = await prisma.transaction.findMany({
+        where: { userId, month, year, recurring: true, status: 'realizado' },
       });
-      return Array.from(m.values()).reduce((s, v) => s + v, 0);
-    };
-
-    const monthlyIncome  = byDesc(income);
-    const monthlyExpense = byDesc(expense);
+      totalIncome  += txs.filter(t => t.type === 'entrada').reduce((s, t) => s + Number(t.value), 0);
+      totalExpense += txs.filter(t => ['saida', 'saida_futura'].includes(t.type)).reduce((s, t) => s + Number(t.value), 0);
+    }
+    const monthlyIncome  = last3Months.length > 0 ? totalIncome  / last3Months.length : 0;
+    const monthlyExpense = last3Months.length > 0 ? totalExpense / last3Months.length : 0;
     const monthlySavings = monthlyIncome - monthlyExpense;
 
-    const now = new Date();
+    // [AN-06] FIX: removida declaração duplicada de 'now' (já declarada acima na mesma função)
     let m = now.getMonth() + 2;
     let y = now.getFullYear();
     if (m > 12) { m -= 12; y += 1; }

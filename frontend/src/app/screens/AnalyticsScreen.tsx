@@ -65,7 +65,8 @@ export function AnalyticsScreen() {
   const transactions = getFilteredTransactions(period.month, period.year);
 
   const categoryData = useMemo(() => {
-    const expenses = transactions.filter(t => t.type !== 'entrada' && t.status === 'realizado');
+    // [A-01] FIX: filtrar apenas saidas reais, excluindo type 'previsto' (mesmo que status=realizado)
+    const expenses = transactions.filter(t => (t.type === 'saida' || t.type === 'saida_futura') && t.status === 'realizado');
     const total = expenses.reduce((s, t) => s + t.value, 0);
     return categories.map(cat => {
       const catTotal = expenses.filter(t => t.category === cat.id).reduce((s, t) => s + t.value, 0);
@@ -79,13 +80,14 @@ export function AnalyticsScreen() {
     }).filter(c => c.value > 0).sort((a, b) => b.value - a.value);
   }, [transactions]);
 
+  // [AN-03] FIX: deps era [] — nunca recalculava após o fetch async de monthlyData
   const comparisonData = useMemo(() => {
     return monthlyData.slice(-4).map(d => ({
       month: d.month,
       realizado: d.saidas,
       previsto: d.previsto,
     }));
-  }, []);
+  }, [monthlyData]);
 
   // Card spending for comparison — usa gastos do período atual (não card.used que é saldo total)
   const cardData = useMemo(() => {
@@ -97,13 +99,26 @@ export function AnalyticsScreen() {
           t.status === 'realizado'
         )
         .reduce((s, t) => s + t.value, 0);
-      return { name: card.name, value: cardMonthlySpending, color: card.color };
+      // [AN-07] FIX: incluído limit para a barra de progresso usar o limite real do cartão
+      return { name: card.name, value: cardMonthlySpending, color: card.color, limit: Number(card.limit) || 0 };
     }).filter(c => c.value > 0);
   }, [cards, transactions]);
 
   const currentMonthData = monthlyData.find(d => d.monthNum === period.month && d.year === period.year);
-  const avgSaidas = monthlyData.reduce((s, d) => s + d.saidas, 0) / monthlyData.length;
-  const avgEntradas = monthlyData.reduce((s, d) => s + d.entradas, 0) / monthlyData.length;
+
+  // [AN-04] FIX: guard contra NaN quando monthlyData ainda está vazio (fetch async)
+  const avgSaidas   = monthlyData.length > 0 ? monthlyData.reduce((s, d) => s + d.saidas,   0) / monthlyData.length : 0;
+  const avgEntradas = monthlyData.length > 0 ? monthlyData.reduce((s, d) => s + d.entradas, 0) / monthlyData.length : 0;
+
+  // [AN-02] FIX: calcular tendência real de gastos (mês atual vs mês anterior)
+  const spendingTrend = useMemo(() => {
+    const pm = period.month === 1 ? 12 : period.month - 1;
+    const py = period.month === 1 ? period.year - 1 : period.year;
+    const cur  = monthlyData.find(d => d.monthNum === period.month && d.year === period.year);
+    const prev = monthlyData.find(d => d.monthNum === pm && d.year === py);
+    if (!prev || prev.saidas === 0) return null;
+    return ((cur?.saidas ?? 0) - prev.saidas) / prev.saidas * 100;
+  }, [monthlyData, period]);
 
   return (
     <div className="flex flex-col">
@@ -136,9 +151,20 @@ export function AnalyticsScreen() {
           <>
             {/* Key Metrics */}
             <div className="grid grid-cols-2 gap-3">
+              {/* [AN-02] FIX: tendência calculada dinamicamente — era hardcoded "↑ 866.7%" */}
               <div className="bg-[#161B22] border border-[#30363D] rounded-2xl p-4">
                 <p className="text-[#7D8590] mb-1" style={{ fontSize: '11px' }}>Tendência de Gastos</p>
-                <p className="text-[#FFA502]" style={{ fontSize: '20px', fontWeight: 700 }}>↑ 866.7%</p>
+                <p
+                  style={{
+                    fontSize: '20px',
+                    fontWeight: 700,
+                    color: spendingTrend === null ? '#7D8590' : spendingTrend >= 0 ? '#FF4757' : '#00D97E',
+                  }}
+                >
+                  {spendingTrend === null
+                    ? '—'
+                    : `${spendingTrend >= 0 ? '↑' : '↓'} ${Math.abs(spendingTrend).toFixed(1)}%`}
+                </p>
                 <p className="text-[#7D8590] mt-1" style={{ fontSize: '10px' }}>vs mês anterior</p>
               </div>
               <div className="bg-[#161B22] border border-[#30363D] rounded-2xl p-4">
@@ -201,8 +227,9 @@ export function AnalyticsScreen() {
                         {formatCurrency(c.value)}
                       </span>
                     </div>
+                    {/* [AN-07] FIX: usa c.limit real do cartão — era divisor hardcoded 500 */}
                     <div className="h-1.5 bg-[#1C2128] rounded-full overflow-hidden">
-                      <div className="h-full rounded-full" style={{ width: `${Math.min((c.value / 500) * 100, 100)}%`, background: c.color }} />
+                      <div className="h-full rounded-full" style={{ width: `${c.limit > 0 ? Math.min((c.value / c.limit) * 100, 100) : 0}%`, background: c.color }} />
                     </div>
                   </div>
                 ))}

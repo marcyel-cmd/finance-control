@@ -74,6 +74,7 @@ function CategoryManagement() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newCat, setNewCat] = useState(false);
   const [form, setForm] = useState<Partial<Category>>({ label: '', icon: '📦', color: '#7D8590' });
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const PRESET_COLORS = ['#FF4757', '#FFA502', '#00D97E', '#4A90D9', '#A855F7', '#F59E0B', '#EC4899', '#7D8590'];
   const PRESET_ICONS = ['🍔', '🏠', '🚗', '💊', '🎓', '🎮', '💳', '🛒', '💼', '✈️', '📱', '🎵', '⚡', '🎁', '📦', '💰'];
@@ -261,12 +262,31 @@ function CategoryManagement() {
                 >
                   <Pencil size={13} color="#4A90D9" />
                 </button>
-                <button
-                  onClick={() => deleteCategory(cat.id)}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-[#FF4757]/10 transition-all"
-                >
-                  <Trash2 size={13} color="#FF4757" />
-                </button>
+                {confirmDeleteId === cat.id ? (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={async () => { await deleteCategory(cat.id); setConfirmDeleteId(null); }}
+                      className="px-2 py-1 rounded-md"
+                      style={{ background: 'rgba(255,71,87,0.15)', border: '1px solid rgba(255,71,87,0.3)', fontSize: '10px', fontWeight: 600, color: '#FF4757' }}
+                    >
+                      Excluir
+                    </button>
+                    <button
+                      onClick={() => setConfirmDeleteId(null)}
+                      className="px-2 py-1 rounded-md"
+                      style={{ background: '#21262D', border: '1px solid #30363D', fontSize: '10px', color: '#7D8590' }}
+                    >
+                      Não
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setConfirmDeleteId(cat.id)}
+                    className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-[#FF4757]/10 transition-all"
+                  >
+                    <Trash2 size={13} color="#FF4757" />
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -324,6 +344,53 @@ function ConfigPanel({ onShowAbout, onShowHelp }: ConfigPanelProps) {
   const [reportTitle, setReportTitle] = useState('');
 
   const isAdmin = currentUser?.role === 'admin';
+
+  // ─── Export functions ──────────────────────────────────────────────────────
+
+  const handleExportCSV = () => {
+    const headers = ['Data', 'Descri\u00E7\u00E3o', 'Tipo', 'Valor', 'Status', 'Categoria'];
+    const rows = transactions.map(t => [
+      `${String(t.day).padStart(2, '0')}/${String(t.month).padStart(2, '0')}/${t.year}`,
+      `"${(t.description || '').replace(/"/g, '""')}"`,
+      t.type,
+      t.value.toFixed(2).replace('.', ','),
+      t.status,
+      t.category || '',
+    ]);
+    const csv = [headers.join(';'), ...rows.map(r => r.join(';'))].join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `preve_transacoes_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast({ type: 'success', title: 'CSV exportado!', message: `${transactions.length} transa\u00E7\u00F5es baixadas` });
+  };
+
+  const handleExportJSON = () => {
+    const data = {
+      exportedAt: new Date().toISOString(),
+      transactions: transactions.map(t => ({
+        id: t.id, description: t.description, value: t.value,
+        type: t.type, status: t.status, category: t.category,
+        date: `${t.year}-${String(t.month).padStart(2, '0')}-${String(t.day).padStart(2, '0')}`,
+      })),
+      cards: cards.map(c => ({ id: c.id, name: c.name, brand: c.brand, limit: c.limit, used: c.used })),
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `preve_dados_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast({ type: 'success', title: 'JSON exportado!', message: 'Dados completos baixados' });
+  };
 
   const handleLogout = () => {
     logoutUser();
@@ -633,7 +700,7 @@ function ConfigPanel({ onShowAbout, onShowHelp }: ConfigPanelProps) {
         <SettingItem
           icon={<Bell size={17} color="#4A90D9" />}
           iconBg="bg-[#4A90D9]/15"
-          title="Notificacoes"
+          title="Notificações"
           subtitle="Alertas e lembretes"
           onClick={() => setShowNotifications(true)}
         />
@@ -812,7 +879,6 @@ function ConfigPanel({ onShowAbout, onShowHelp }: ConfigPanelProps) {
         setShowConfirmPw={setShowConfirmPw}
         securityError={securityError}
         setSecurityError={setSecurityError}
-        currentUserPassword={currentUser?.password}
         showExport={showExport}
         setShowExport={setShowExport}
         showReports={showReports}
@@ -826,6 +892,8 @@ function ConfigPanel({ onShowAbout, onShowHelp }: ConfigPanelProps) {
         setExportFormat={setExportFormat}
         reportTitle={reportTitle}
         setReportTitle={setReportTitle}
+        onExportCSV={handleExportCSV}
+        onExportJSON={handleExportJSON}
       />
     </div>
   );

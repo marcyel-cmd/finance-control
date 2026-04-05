@@ -692,6 +692,8 @@ function ForgotPasswordModal({ onClose }: { onClose: () => void }) {
 
 // ─── Main Login Screen ───────────────────────────────────────────────────────
 
+const REMEMBER_ME_KEY = 'fc_remembered_email';
+
 export function LoginScreen() {
   const navigate = useNavigate();
   const { loginUser } = useApp();
@@ -705,7 +707,13 @@ export function LoginScreen() {
   const [showBiometric, setShowBiometric] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
 
+  // Restore remembered email on mount
   useEffect(() => {
+    const remembered = localStorage.getItem(REMEMBER_ME_KEY);
+    if (remembered) {
+      setEmail(remembered);
+      setRememberMe(true);
+    }
     setTimeout(() => setMounted(true), 100);
   }, []);
 
@@ -719,6 +727,12 @@ export function LoginScreen() {
     try {
       const user = await loginUser(email, password);
       if (user) {
+        // Persist or clear remembered email based on checkbox
+        if (rememberMe) {
+          localStorage.setItem(REMEMBER_ME_KEY, email);
+        } else {
+          localStorage.removeItem(REMEMBER_ME_KEY);
+        }
         navigate('/');
       } else {
         setError('E-mail ou senha incorretos');
@@ -728,7 +742,7 @@ export function LoginScreen() {
     } finally {
       setLoading(false);
     }
-  }, [email, password, navigate, loginUser]);
+  }, [email, password, rememberMe, navigate, loginUser]);
 
   const handleBiometricSuccess = useCallback(async () => {
     try {

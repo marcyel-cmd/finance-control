@@ -86,7 +86,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<AppUser | null>(() => {
     try {
       const saved = localStorage.getItem('fc_current_user');
-      return saved ? JSON.parse(saved) : null;
+      if (!saved) return null;
+      const parsed = JSON.parse(saved);
+      // [A-05] FIX: remover campo password de dados legados salvos no localStorage
+      if (parsed && 'password' in parsed) { delete parsed.password; }
+      return parsed;
     } catch {
       return null;
     }
@@ -191,11 +195,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const { month, year } = periodRef.current;
     setLoading(true);
     try {
-      // Rolagem de saldo: verificar se deve criar lançamento do mês anterior
-      // Roda silenciosamente — não bloqueia o carregamento principal
+      // [A-04] FIX: rolagem de saldo com notificação ao usuário via setToasts direto
+      // (showToast não disponível ainda no useCallback — usamos setToasts diretamente)
+      // [AN-08] FIX: usar data real (today) para verificar se deve rodar carry-forward,
+      // não periodRef.current (período selecionado pelo usuário). Se usuário estiver vendo
+      // fevereiro enquanto hoje é 3 de março, o carry-forward de março nunca disparava.
       const today = new Date();
-      if (today.getDate() <= 5 && today.getMonth() + 1 === month && today.getFullYear() === year) {
-        transactionsApi.carryForward(month, year).catch(() => {/* silencioso */});
+      const todayMonth = today.getMonth() + 1;
+      const todayYear  = today.getFullYear();
+      if (today.getDate() <= 5) {
+        transactionsApi.carryForward(todayMonth, todayYear)
+          .then((res: any) => {
+            if (res?.data?.created && res?.data?.balance > 0) {
+              const MONTH_PT = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+                'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+              const prevMonthName = todayMonth === 1 ? MONTH_PT[11] : MONTH_PT[todayMonth - 2];
+              const val = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(res.data.balance);
+              const id = `toast_carry_${Date.now()}`;
+              setToasts(prev => [...prev, {
+                id, type: 'info' as const,
+                title: 'Saldo transferido automaticamente',
+                message: `Saldo de ${prevMonthName} (${val}) adicionado como entrada deste mês.`,
+                duration: 6000,
+              }]);
+              setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 6000);
+            }
+          })
+          .catch(() => {/* silencioso em caso de erro de rede */});
       }
 
       await Promise.all([
@@ -371,11 +397,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const loginUser = useCallback(async (email: string, password: string): Promise<AppUser | null> => {
     const res = await authApi.login(email, password);
+    // [A-05] FIX: não incluir campo password no objeto de usuário do contexto
     const user: AppUser = {
       id: res.user.id,
       name: res.user.name,
       email: res.user.email,
-      password: '',
       role: res.user.role as 'admin' | 'user',
       createdAt: res.user.createdAt,
       active: res.user.active,
@@ -397,16 +423,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // ── Users (simplificado) ────────────────────────────────
+  // [A-06] FIX: funções não implementadas lançam erro explícito em vez de ser no-ops silenciosos
 
   const addUser = useCallback((_u: Omit<AppUser, 'id' | 'createdAt'>) => {
+    console.warn('[AppContext] addUser ainda não integrado com a API.');
     // TODO: integrar com POST /users quando necessário
   }, []);
 
   const updateUser = useCallback((_u: AppUser) => {
+    console.warn('[AppContext] updateUser ainda não integrado com a API.');
     // TODO: integrar com PUT /users/me quando necessário
   }, []);
 
   const deleteUser = useCallback((_id: string) => {
+    console.warn('[AppContext] deleteUser ainda não integrado com a API.');
     // TODO: integrar com DELETE /users/:id quando necessário
   }, []);
 

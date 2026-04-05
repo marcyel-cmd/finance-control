@@ -245,13 +245,17 @@ function HomeCardCarousel({ cards, onNavigate }: { cards: CreditCard[]; onNaviga
 function AIInsightsWidget({ month, year }: { month: number; year: number }) {
   const [insights, setInsights] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  // [D-04] FIX: dismissed por período, não por sessão inteira
   const [dismissed, setDismissed] = useState(false);
+  const [lastDismissedKey, setLastDismissedKey] = useState('');
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    // Só mostra a partir do dia 5 do mês (dados suficientes)
+    // [D-04] FIX: resetar dismissed ao trocar mês/ano; mostrar em meses passados sem restrição de dia
     const today = new Date();
-    if (today.getDate() < 5 || dismissed) { setVisible(false); return; }
+    const isCurrentMonth = today.getMonth() + 1 === month && today.getFullYear() === year;
+    const tooEarly = isCurrentMonth && today.getDate() < 5;
+    if (tooEarly || dismissed) { setVisible(false); return; }
     setVisible(true);
 
     // Usar cache simples por sessão para não chamar Gemini repetidamente
@@ -272,6 +276,15 @@ function AIInsightsWidget({ month, year }: { month: number; year: number }) {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [month, year, dismissed]);
+
+  // [AN-01] FIX: useEffect extraído para o nível raiz — estava ilegalmente aninhado dentro do outro useEffect
+  // ao mudar período, resetar dismissed se o período mudou
+  useEffect(() => {
+    const key = `${month}_${year}`;
+    if (key !== lastDismissedKey) {
+      setDismissed(false);
+    }
+  }, [month, year, lastDismissedKey]);
 
   if (!visible || dismissed) return null;
   if (loading) {
@@ -308,7 +321,7 @@ function AIInsightsWidget({ month, year }: { month: number; year: number }) {
           <span className="text-[#A855F7]" style={{ fontSize: '12px', fontWeight: 600 }}>IA Financeira</span>
         </div>
         <button
-          onClick={() => setDismissed(true)}
+          onClick={() => { setDismissed(true); setLastDismissedKey(`${month}_${year}`); }}
           className="text-[#484F58] hover:text-[#7D8590] transition-colors"
           style={{ fontSize: '16px', lineHeight: 1 }}
         >
@@ -358,11 +371,12 @@ export function DashboardScreen() {
   const deviceType = useDeviceType();
 
   const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([]);
+  // [D-05] FIX: gráfico "Últimos 6 meses" é fixo a partir de hoje — não depende do período selecionado
   useEffect(() => {
     analyticsApi.monthly(6).then(res => {
       if (res.data) setMonthlyData(res.data);
     }).catch(console.error);
-  }, [period.month, period.year]);
+  }, []); // sem dependência de period — só carrega uma vez
 
   const transactions = getFilteredTransactions(period.month, period.year);
   const recent = transactions.filter(t => t.status === 'realizado').slice(0, 4);
@@ -462,7 +476,8 @@ export function DashboardScreen() {
             <div className="w-6 h-6 rounded-lg bg-[#00D97E]/15 flex items-center justify-center">
               <span style={{ fontSize: '12px' }}>💳</span>
             </div>
-            <h3 className="text-[#E6EDF3]" style={{ fontSize: '14px', fontWeight: 600 }}>Meus Cartoes</h3>
+            {/* [AN-05] FIX: typo "Meus Cartoes" → "Meus Cartões" */}
+            <h3 className="text-[#E6EDF3]" style={{ fontSize: '14px', fontWeight: 600 }}>Meus Cartões</h3>
           </div>
           <button
             onClick={() => setShowManageCards(true)}

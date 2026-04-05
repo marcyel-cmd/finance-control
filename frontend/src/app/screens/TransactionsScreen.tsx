@@ -32,21 +32,32 @@ export function TransactionsScreen() {
   const filtered = useMemo(() => {
     let list: Transaction[] = allTx;
 
+    // [T-01] FIX: hierarquia de abas sem sobreposição
+    // "Previsto" mostra apenas type === 'previsto' (budgets/orçamentos)
+    // "Saídas" mostra saida + saida_futura (incluindo com status previsto, mas NÃO type previsto)
     if (activeTab === 'entradas') list = list.filter(t => t.type === 'entrada');
     else if (activeTab === 'saidas') list = list.filter(t => t.type === 'saida' || t.type === 'saida_futura');
-    else if (activeTab === 'previsto') list = list.filter(t => t.type === 'previsto' || t.status === 'previsto');
+    else if (activeTab === 'previsto') list = list.filter(t => t.type === 'previsto');
 
     if (search) list = list.filter(t =>
       t.description.toLowerCase().includes(search.toLowerCase())
     );
     if (filterCategory !== 'all') list = list.filter(t => t.category === filterCategory);
-    if (filterStatus !== 'all') list = list.filter(t => t.status === filterStatus);
+    // [T-03] FIX: filtro de status não aplicado quando aba já define status implícito
+    if (filterStatus !== 'all') {
+      if (activeTab === 'todas' || activeTab === 'saidas') {
+        list = list.filter(t => t.status === filterStatus);
+      }
+      // em 'previsto' e 'entradas' o filtro de status não faz sentido, ignoramos
+    }
 
     return list.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [allTx, activeTab, search, filterCategory, filterStatus]);
 
-  const entradas = filtered.filter(t => t.type === 'entrada').reduce((s, t) => s + t.value, 0);
-  const saidas = filtered.filter(t => t.type !== 'entrada' && t.status === 'realizado').reduce((s, t) => s + t.value, 0);
+  // [T-02] FIX: mini-resumo sempre calculado sobre allTx (não filtrado),
+  // assim o usuário vê o saldo real do período independente dos filtros ativos
+  const entradas = allTx.filter(t => t.type === 'entrada' && t.status === 'realizado').reduce((s, t) => s + t.value, 0);
+  const saidas = allTx.filter(t => (t.type === 'saida' || t.type === 'saida_futura') && t.status === 'realizado').reduce((s, t) => s + t.value, 0);
 
   const hasActiveFilters = filterCategory !== 'all' || filterStatus !== 'all';
 
@@ -189,12 +200,12 @@ export function TransactionsScreen() {
           )}
         </AnimatePresence>
 
-        {/* Summary Mini */}
+        {/* Summary Mini — [T-02] FIX: sempre mostra saldo do período inteiro, não do filtro */}
         <div className="flex gap-3">
           {[
             { label: 'Entradas', value: entradas, color: '#00D97E' },
             { label: 'Saídas', value: saidas, color: '#FF4757' },
-            { label: 'Saldo', value: entradas - saidas, color: entradas - saidas >= 0 ? '#00D97E' : '#FF4757' },
+            { label: 'Saldo do Mês', value: entradas - saidas, color: entradas - saidas >= 0 ? '#00D97E' : '#FF4757' },
           ].map((item, i) => (
             <motion.div
               key={item.label}

@@ -39,6 +39,14 @@ export class AuthController {
     res.json({ success: true });
   }
 
+  async changePassword(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { currentPassword, newPassword } = req.body;
+      await authService.changePassword(req.user!.userId, currentPassword, newPassword);
+      res.json({ success: true, message: 'Senha alterada com sucesso' });
+    } catch (error) { next(error); }
+  }
+
   // ── WebAuthn ──────────────────────────────────────────
 
   async passkeyRegisterOptions(req: Request, res: Response, next: NextFunction) {

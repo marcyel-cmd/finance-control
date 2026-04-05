@@ -70,6 +70,22 @@ export class NotificationService {
   async checkCardLimit(userId: string, card: any) {
     const pct = Number(card.limit) > 0 ? (Number(card.used) / Number(card.limit)) * 100 : 0;
 
+    if (pct < 80) return;
+
+    // [NOTIF-01] FIX: deduplicação — evita criar múltiplas notificações do mesmo tipo
+    // para o mesmo cartão no mesmo dia (era criado a cada transação acima de 80%)
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const alreadyNotified = await prisma.notification.findFirst({
+      where: {
+        userId,
+        actionRoute: '/cartoes',
+        createdAt: { gte: startOfDay },
+        message: { contains: card.name },
+      },
+    });
+    if (alreadyNotified) return;
+
     if (pct >= 95) {
       await this.create(userId, {
         type: 'alert',
@@ -80,7 +96,7 @@ export class NotificationService {
         actionLabel: 'Ver Cart\u00E3o',
         actionRoute: '/cartoes',
       });
-    } else if (pct >= 80) {
+    } else {
       await this.create(userId, {
         type: 'warning',
         title: 'Limite alto',

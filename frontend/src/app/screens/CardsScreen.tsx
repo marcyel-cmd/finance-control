@@ -499,9 +499,20 @@ function CardDetail({ card, onBack }: { card: CreditCard; onBack: () => void }) 
     if (billMonth.month === 1) setBillMonth({ month: 12, year: billMonth.year - 1 });
     else setBillMonth({ month: billMonth.month - 1, year: billMonth.year });
   };
+  // [C-05] FIX: limitar navegação a no máximo 2 meses à frente do mês atual
+  const today = new Date();
+  const maxFutureMonth = today.getMonth() + 3; // 1-based + 2
+  const maxFutureYear = today.getFullYear() + (maxFutureMonth > 12 ? 1 : 0);
+  const maxFutureMonthNorm = maxFutureMonth > 12 ? maxFutureMonth - 12 : maxFutureMonth;
+  const canGoNext = (billMonth.year < maxFutureYear) ||
+    (billMonth.year === maxFutureYear && billMonth.month < maxFutureMonthNorm);
   const nextBill = () => {
+    if (!canGoNext) return;
     if (billMonth.month === 12) setBillMonth({ month: 1, year: billMonth.year + 1 });
     else setBillMonth({ month: billMonth.month + 1, year: billMonth.year });
+  };
+  const goToCurrentBill = () => {
+    setBillMonth({ month: today.getMonth() + 1, year: today.getFullYear() });
   };
 
   const handleInvoiceTouchStart = (e: React.TouchEvent) => {
@@ -542,7 +553,10 @@ function CardDetail({ card, onBack }: { card: CreditCard; onBack: () => void }) 
     return { name: cat.label, value: catTotal, color: cat.color, icon: cat.icon };
   }).filter(c => c.value > 0);
 
-  const showPayButton = billTotal > 0 && !isPaid && (invoiceInfo.status === 'fechada' || invoiceInfo.status === 'vencida');
+  // [C-04] FIX: permitir pagamento antecipado (fatura aberta) além de fechada/vencida
+  const showPayButton = billTotal > 0 && !isPaid &&
+    (invoiceInfo.status === 'aberta' || invoiceInfo.status === 'fechada' || invoiceInfo.status === 'vencida');
+  const isEarlyPayment = invoiceInfo.status === 'aberta';
   const billLabel = `${MONTHS_FULL[billMonth.month - 1]} ${billMonth.year}`;
 
   return (
@@ -589,17 +603,32 @@ function CardDetail({ card, onBack }: { card: CreditCard; onBack: () => void }) 
             <h3 className="text-[#E6EDF3]" style={{ fontSize: '15px', fontWeight: 700 }}>
               Fatura
             </h3>
-            {/* Month navigator */}
-            <div className="flex items-center gap-1.5 bg-[#1C2128] border border-[#30363D] rounded-xl px-2 py-1">
-              <button onClick={prevBill} className="text-[#7D8590] hover:text-[#E6EDF3] transition-colors p-0.5">
-                <ChevronLeft size={14} />
+            {/* [C-05] FIX: navegador com limite de futuro + botão Hoje */}
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={goToCurrentBill}
+                className="px-2 py-1 rounded-lg transition-colors text-[#7D8590] hover:text-[#00D97E]"
+                style={{ fontSize: '10px', background: '#1C2128', border: '1px solid #30363D' }}
+                title="Ir para mês atual"
+              >
+                Hoje
               </button>
-              <span key={`${billMonth.month}-${billMonth.year}`} className="text-[#E6EDF3] min-w-[80px] text-center" style={{ fontSize: '12px', fontWeight: 500 }}>
-                {MONTHS_SHORT[billMonth.month - 1]} {billMonth.year}
-              </span>
-              <button onClick={nextBill} className="text-[#7D8590] hover:text-[#E6EDF3] transition-colors p-0.5">
-                <ChevronRight size={14} />
-              </button>
+              <div className="flex items-center gap-1.5 bg-[#1C2128] border border-[#30363D] rounded-xl px-2 py-1">
+                <button onClick={prevBill} className="text-[#7D8590] hover:text-[#E6EDF3] transition-colors p-0.5">
+                  <ChevronLeft size={14} />
+                </button>
+                <span key={`${billMonth.month}-${billMonth.year}`} className="text-[#E6EDF3] min-w-[80px] text-center" style={{ fontSize: '12px', fontWeight: 500 }}>
+                  {MONTHS_SHORT[billMonth.month - 1]} {billMonth.year}
+                </span>
+                <button
+                  onClick={nextBill}
+                  disabled={!canGoNext}
+                  className="transition-colors p-0.5"
+                  style={{ color: canGoNext ? '#7D8590' : '#30363D' }}
+                >
+                  <ChevronRight size={14} />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -671,22 +700,37 @@ function CardDetail({ card, onBack }: { card: CreditCard; onBack: () => void }) 
               </div>
             </div>
 
-            {/* Pay button */}
+            {/* Pay button — [C-04] FIX: permite pagamento antecipado com aviso */}
             {showPayButton && (
-              <button
-                onClick={() => setShowPayModal(true)}
-                className="w-full mt-4 py-3 rounded-xl text-black active:scale-[0.97] transition-all flex items-center justify-center gap-2"
-                style={{
-                  fontSize: '14px',
-                  fontWeight: 700,
-                  background: invoiceInfo.status === 'vencida'
-                    ? 'linear-gradient(135deg, #FF4757, #FF6B6B)'
-                    : '#00D97E',
-                }}
-              >
-                <CreditCardIcon size={16} />
-                {invoiceInfo.status === 'vencida' ? 'Pagar Fatura Vencida' : 'Pagar Fatura'}
-              </button>
+              <div className="mt-4 flex flex-col gap-2">
+                {isEarlyPayment && (
+                  <div
+                    className="flex items-center gap-2 rounded-xl px-3 py-2"
+                    style={{ background: 'rgba(74,144,217,0.1)', border: '1px solid rgba(74,144,217,0.25)' }}
+                  >
+                    <Calendar size={13} color="#4A90D9" className="flex-shrink-0" />
+                    <p style={{ fontSize: '11px', color: '#4A90D9' }}>
+                      Pagamento antecipado — a fatura ainda está aberta até dia {invoiceInfo.closingDate}.
+                    </p>
+                  </div>
+                )}
+                <button
+                  onClick={() => setShowPayModal(true)}
+                  className="w-full py-3 rounded-xl text-black active:scale-[0.97] transition-all flex items-center justify-center gap-2"
+                  style={{
+                    fontSize: '14px',
+                    fontWeight: 700,
+                    background: invoiceInfo.status === 'vencida'
+                      ? 'linear-gradient(135deg, #FF4757, #FF6B6B)'
+                      : isEarlyPayment
+                      ? '#4A90D9'
+                      : '#00D97E',
+                  }}
+                >
+                  <CreditCardIcon size={16} />
+                  {invoiceInfo.status === 'vencida' ? 'Pagar Fatura Vencida' : isEarlyPayment ? 'Pagar Antecipadamente' : 'Pagar Fatura'}
+                </button>
+              </div>
             )}
 
             {isPaid && billTotal > 0 && (

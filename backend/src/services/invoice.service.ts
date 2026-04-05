@@ -131,8 +131,16 @@ async parse(filePath: string, _mime: string, _userId: string) {
       created.push(t);
     }
 
+    // [A-03] FIX: só incrementar 'used' se a fatura não está marcada como paga.
+    // Importar faturas antigas já pagas não deve reduzir o limite disponível do cartão.
+    const isBillAlreadyPaid = !!(forceBillMonth && forceBillYear &&
+      await prisma.transaction.findFirst({
+        where: { userId, cardId, billMonth: forceBillMonth, billYear: forceBillYear, type: 'pagamento_fatura' },
+      })
+    );
+
     const totalImported = created.reduce((s, t) => s + Number(t.value), 0);
-    if (totalImported > 0) {
+    if (totalImported > 0 && !isBillAlreadyPaid) {
       await prisma.creditCard.update({
         where: { id: cardId },
         data: { used: { increment: totalImported } },

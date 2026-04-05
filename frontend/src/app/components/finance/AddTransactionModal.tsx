@@ -28,7 +28,12 @@ export function AddTransactionModal({ onClose }: Props) {
   const [category, setCategory] = useState('alimentacao');
   const [paymentMethod, setPaymentMethod] = useState('dinheiro');
   const [cardId, setCardId] = useState('');
-  const [date, setDate] = useState(`${period.year}-${String(period.month).padStart(2, '0')}-21`);
+  // [D-01] FIX: usar data de hoje como padrão, não dia 21 hardcoded
+  const todayStr = (() => {
+    const t = new Date();
+    return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+  })();
+  const [date, setDate] = useState(todayStr);
   const [installment, setInstallment] = useState(false);
   const [installmentCount, setInstallmentCount] = useState(2);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -84,6 +89,7 @@ export function AddTransactionModal({ onClose }: Props) {
   };
 
   // ── Invoice calculation logic ──
+  // [C-02] FIX: calcular o mês de vencimento corretamente quando dueDay < closingDay
   const getInvoiceInfo = (card: CreditCard, txDate: string) => {
     const [year, month, day] = txDate.split('-').map(Number);
     let invoiceMonth: number;
@@ -103,7 +109,16 @@ export function AddTransactionModal({ onClose }: Props) {
       }
     }
 
-    const dueDate = `${card.dueDay} de ${MONTH_NAMES[invoiceMonth - 1]} de ${invoiceYear}`;
+    // [C-02] FIX: o vencimento pode ser no mês seguinte ao fechamento
+    // ex: fecha dia 10, vence dia 5 → fatura de janeiro vence em 5 de FEVEREIRO
+    let dueMonth = invoiceMonth;
+    let dueYear = invoiceYear;
+    if (card.dueDay <= card.closingDay) {
+      dueMonth += 1;
+      if (dueMonth > 12) { dueMonth = 1; dueYear += 1; }
+    }
+
+    const dueDate = `${card.dueDay} de ${MONTH_NAMES[dueMonth - 1]} de ${dueYear}`;
     return { invoiceMonth, invoiceYear, dueDate };
   };
 

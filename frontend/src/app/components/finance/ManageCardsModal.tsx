@@ -62,7 +62,7 @@ function CardForm({ card, onSave, onCancel }: {
         <div className="relative z-10 flex flex-col justify-between h-full">
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-white/60 uppercase text-[9px] tracking-widest">Crédito</p>
+              <p className="text-white/60 uppercase text-[9px] tracking-widest">{type === 'credito' ? 'Crédito' : 'Débito'}</p>
               <p className="text-white font-bold" style={{ fontSize: '16px' }}>{name || 'Nome do Cartão'}</p>
             </div>
           </div>

@@ -34,6 +34,8 @@ export function TransactionItem({ transaction: tx, showDelete = false, index = 0
   const isIncome = tx.type === 'entrada';
   const isPrevisto = tx.type === 'previsto' || tx.status === 'previsto';
   const hasInstallments = tx.installments && tx.installments > 1;
+  // [T-05] FIX: detectar se é a parcela mãe (sem parentId implícito = currentInstallment === 1 e installments > 1)
+  const isInstallmentParent = !!(hasInstallments && tx.currentInstallment === 1);
 
   const valueColor = isIncome ? '#00D97E' : isPrevisto ? '#FFA502' : '#FF4757';
 
@@ -312,6 +314,18 @@ export function TransactionItem({ transaction: tx, showDelete = false, index = 0
                         </span>
                         ?
                       </p>
+                      {/* [T-05] FIX: avisar que todas as parcelas serão excluídas */}
+                      {isInstallmentParent && tx.installments && (
+                        <div
+                          className="mt-3 flex items-start gap-2 rounded-xl px-3 py-2.5"
+                          style={{ background: 'rgba(255,165,2,0.08)', border: '1px solid rgba(255,165,2,0.25)' }}
+                        >
+                          <AlertTriangle size={14} color="#FFA502" className="flex-shrink-0 mt-0.5" />
+                          <p style={{ fontSize: '12px', color: '#FFA502', lineHeight: 1.5 }}>
+                            Atenção: esta é a 1ª de <strong>{tx.installments} parcelas</strong>. Excluir apagará <strong>todas as {tx.installments} parcelas</strong> desta compra.
+                          </p>
+                        </div>
+                      )}
                       <p className="mt-2 text-[#7D8590]" style={{ fontSize: '12px', lineHeight: 1.5 }}>
                         Essa ação não pode ser desfeita.
                       </p>

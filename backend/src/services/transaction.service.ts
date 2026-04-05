@@ -29,18 +29,33 @@ function advanceMonths(month: number, year: number, n: number) {
 const MONTH_PT = ['Janeiro','Fevereiro','Mar\u00E7o','Abril','Maio','Junho',
                   'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
+// [C-01] FIX: lógica de status unificada e corrigida
+// Considera que dueDay pode estar no mês SEGUINTE ao fechamento (ex: fecha dia 10, vence dia 5 do próximo mês)
 function getBillStatus(billMonth: number, billYear: number, closingDay: number, dueDay: number) {
   const now = new Date();
-  const day = now.getDate();
-  const cm  = now.getMonth() + 1;
-  const cy  = now.getFullYear();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-  if (billYear > cy || (billYear === cy && billMonth > cm)) return 'futura';
-  if (billYear === cy && billMonth === cm) {
-    if (day < closingDay)  return 'aberta';
-    if (day <= dueDay)     return 'fechada';
-    return 'vencida';
+  // Data de fechamento: closingDay do billMonth/billYear
+  const closingDate = new Date(billYear, billMonth - 1, Math.min(closingDay, new Date(billYear, billMonth, 0).getDate()));
+
+  // Data de vencimento: dueDay pode ser no mês seguinte se dueDay <= closingDay
+  let dueMonthIdx = billMonth - 1; // JS month index (0-based)
+  let dueYear = billYear;
+  if (dueDay <= closingDay) {
+    dueMonthIdx += 1;
+    if (dueMonthIdx > 11) { dueMonthIdx = 0; dueYear += 1; }
   }
+  const dueDate = new Date(dueYear, dueMonthIdx, Math.min(dueDay, new Date(dueYear, dueMonthIdx + 1, 0).getDate()));
+
+  if (today < closingDate) {
+    // Ainda não fechou: aberta se estamos no ciclo dela, futura se é do próximo ciclo
+    // O ciclo começa no dia (closingDay+1) do mês anterior
+    const cycleStart = new Date(closingDate);
+    cycleStart.setMonth(cycleStart.getMonth() - 1);
+    cycleStart.setDate(closingDay + 1);
+    return today >= cycleStart ? 'aberta' : 'futura';
+  }
+  if (today <= dueDate) return 'fechada';
   return 'vencida';
 }
 
@@ -333,14 +348,16 @@ export class TransactionService {
     const tx = await prisma.transaction.findFirst({ where: { id, userId } });
     if (!tx) throw new AppError(404, 'Transa\u00E7\u00E3o n\u00E3o encontrada');
 
-    // Deletar parcelas filhas se for a m\u00E3e
+    // [C-03] FIX: ao deletar a mãe, calcular total real a decrementar
+    // somando mãe + filhas REMANESCENTES (evita over-decrement se filha já foi deletada)
     if (tx.installment && !tx.parentId) {
       if (tx.cardId && tx.status === 'realizado') {
-        const totalValue = tx.totalValue || tx.value;
-        // Decrement atômico para evitar race condition
+        const children = await prisma.transaction.findMany({ where: { parentId: id } });
+        const childrenTotal = children.reduce((s, c) => s + Number(c.value), 0);
+        const totalToDecrement = Number(tx.value) + childrenTotal;
         await prisma.creditCard.updateMany({
-          where: { id: tx.cardId, used: { gte: totalValue } },
-          data: { used: { decrement: totalValue } },
+          where: { id: tx.cardId, used: { gte: totalToDecrement } },
+          data: { used: { decrement: totalToDecrement } },
         });
         await prisma.$executeRaw`UPDATE credit_cards SET used = GREATEST(0, used) WHERE id = ${tx.cardId}`;
       }
@@ -524,7 +541,16 @@ export class TransactionService {
       total, paid: !!payment,
       paidAt: payment?.date || null,
       paidValue: payment?.value || null,
-      dueDate: `${String(card.dueDay).padStart(2, '0')}/${String(billMonth).padStart(2, '0')}/${billYear}`,
+      // [TX-01] FIX: quando dueDay < closingDay, o vencimento cai no mês SEGUINTE ao fechamento
+      // Ex: fecha dia 20/março, vence dia 10 → vencimento é 10/abril, não 10/março
+      dueDate: (() => {
+        let dm = billMonth, dy = billYear;
+        if (card.dueDay < card.closingDay) {
+          dm += 1;
+          if (dm > 12) { dm = 1; dy += 1; }
+        }
+        return `${String(card.dueDay).padStart(2, '0')}/${String(dm).padStart(2, '0')}/${dy}`;
+      })(),
       transactions: txs,
     };
   }
