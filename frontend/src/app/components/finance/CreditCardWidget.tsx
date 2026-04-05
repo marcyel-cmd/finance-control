@@ -21,7 +21,7 @@ const BRAND_LOGOS: Record<string, string> = {
 };
 
 export function CreditCardWidget({ card, onClick, size = 'sm' }: CreditCardWidgetProps) {
-  const usedPercent = (card.used / card.limit) * 100;
+  const usedPercent = card.limit > 0 ? (card.used / card.limit) * 100 : 0;
   const isAlertZone = usedPercent > 80;
   const isWarningZone = usedPercent > 60;
   const barColor = isAlertZone ? '#FF4757' : isWarningZone ? '#FFA502' : '#00D97E';

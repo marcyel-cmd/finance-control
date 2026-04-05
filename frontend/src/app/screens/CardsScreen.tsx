@@ -138,6 +138,7 @@ function CardCarousel({ cards, activeIndex, onSelect, onCardClick }: CardCarouse
 function UsageMeter({ card }: { card: CreditCard }) {
   const usedPercent = card.limit > 0 ? (card.used / card.limit) * 100 : 0;
   const available = card.limit - card.used;
+  const isOverLimit = available < 0;
   const isAlert = usedPercent > 80;
   const isWarning = usedPercent > 60;
   const barColor = isAlert ? '#FF4757' : isWarning ? '#FFA502' : '#00D97E';
@@ -172,7 +173,7 @@ function UsageMeter({ card }: { card: CreditCard }) {
         </div>
         <div className="bg-[#1C2128] rounded-xl p-2.5 text-center">
           <p className="text-[#7D8590]" style={{ fontSize: '9px', textTransform: 'uppercase', letterSpacing: 0.5 }}>Disponível</p>
-          <p className="text-[#00D97E]" style={{ fontSize: '14px', fontWeight: 700 }}>
+          <p style={{ fontSize: '14px', fontWeight: 700, color: isOverLimit ? '#FF4757' : '#00D97E' }}>
             {formatCurrency(available)}
           </p>
         </div>
@@ -299,10 +300,18 @@ interface PayInvoiceModalProps {
 
 function PayInvoiceModal({ card, billTotal, billLabel, invoiceInfo, onConfirm, onClose }: PayInvoiceModalProps) {
   const [step, setStep] = useState<'confirm' | 'success'>('confirm');
+  const [paying, setPaying] = useState(false);
 
-  const handlePay = () => {
-    onConfirm();
-    setStep('success');
+  // [CARD-03] FIX: aguardar resolução da API antes de exibir sucesso.
+  // Antes: onConfirm() não era awaited → "Fatura Paga!" aparecia mesmo se a API falhasse.
+  const handlePay = async () => {
+    setPaying(true);
+    try {
+      await onConfirm();
+      setStep('success');
+    } finally {
+      setPaying(false);
+    }
   };
 
   return (
@@ -388,10 +397,11 @@ function PayInvoiceModal({ card, billTotal, billLabel, invoiceInfo, onConfirm, o
               </button>
               <button
                 onClick={handlePay}
+                disabled={paying}
                 className="flex-1 py-3.5 rounded-2xl text-black transition-all active:scale-[0.97]"
-                style={{ fontSize: '14px', fontWeight: 700, background: '#00D97E' }}
+                style={{ fontSize: '14px', fontWeight: 700, background: '#00D97E', opacity: paying ? 0.6 : 1, cursor: paying ? 'not-allowed' : 'pointer' }}
               >
-                Confirmar Pagamento
+                {paying ? 'Processando...' : 'Confirmar Pagamento'}
               </button>
             </div>
           </div>
@@ -527,6 +537,8 @@ function CardDetail({ card, onBack }: { card: CreditCard; onBack: () => void }) 
     invoiceTouchStartX.current = null;
   };
 
+  // [CARD-03] FIX: re-throw do erro para que PayInvoiceModal.handlePay() (async) possa capturar
+  // e NÃO avançar para a tela de sucesso quando o pagamento falhar.
   const handlePayInvoice = async () => {
     try {
       await cardsApi.payBill(card.id, billMonth.month, billMonth.year);
@@ -545,6 +557,7 @@ function CardDetail({ card, onBack }: { card: CreditCard; onBack: () => void }) 
         message: err.message || 'Tente novamente',
         icon: '❌',
       });
+      throw err; // [CARD-03] re-throw para o modal não avançar para 'success'
     }
   };
 

@@ -20,10 +20,11 @@ const formatDate = (dateStr: string) => {
 };
 
 export function TransactionItem({ transaction: tx, showDelete = false, index = 0 }: TransactionItemProps) {
-  const { deleteTransaction, categories } = useApp();
+  const { deleteTransaction, categories, showToast } = useApp();
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteStep, setDeleteStep] = useState<'confirm' | 'success'>('confirm');
+  const [deleting, setDeleting] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [swipeX, setSwipeX] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
@@ -343,19 +344,34 @@ export function TransactionItem({ transaction: tx, showDelete = false, index = 0
                       >
                         Cancelar
                       </motion.button>
+                      {/* [TX-ITEM-01] FIX: deleteTransaction chamado AQUI — sucesso só exibido após API resolver.
+                          Antes: "Excluir" só mudava o step; deleteTransaction era chamado apenas no "Entendido".
+                          Se a API falhasse, o usuário via sucesso sem que a exclusão ocorresse de fato. */}
                       <motion.button
-                        onClick={() => setDeleteStep('success')}
+                        disabled={deleting}
+                        onClick={async () => {
+                          setDeleting(true);
+                          try {
+                            await deleteTransaction(tx.id);
+                            setDeleteStep('success');
+                          } catch {
+                            showToast({ type: 'error', title: 'Erro ao excluir', message: 'Tente novamente', icon: '❌' });
+                          } finally {
+                            setDeleting(false);
+                          }
+                        }}
                         className="flex-1 h-11 rounded-xl flex items-center justify-center gap-2"
                         style={{
                           background: 'rgba(255, 71, 87, 0.2)',
                           border: '1px solid rgba(255, 71, 87, 0.35)',
                           fontSize: '14px', fontWeight: 600, color: '#FF4757',
+                          opacity: deleting ? 0.6 : 1, cursor: deleting ? 'not-allowed' : 'pointer',
                         }}
                         whileTap={{ scale: 0.96 }}
                         whileHover={{ background: 'rgba(255, 71, 87, 0.3)' }}
                       >
                         <Trash2 size={14} />
-                        Excluir
+                        {deleting ? 'Excluindo...' : 'Excluir'}
                       </motion.button>
                     </div>
                   </motion.div>
@@ -400,11 +416,12 @@ export function TransactionItem({ transaction: tx, showDelete = false, index = 0
                       <span className="text-[#8B949E]" style={{ fontWeight: 600 }}>"{tx.description}"</span>
                       {' '}foi removida com sucesso.
                     </motion.p>
+                    {/* [TX-ITEM-01] FIX: deleteTransaction foi movido para o clique de "Excluir".
+                        "Entendido" apenas fecha o modal — a exclusão já ocorreu. */}
                     <motion.button
                       onClick={() => {
                         setShowDeleteConfirm(false);
                         setDeleteStep('confirm');
-                        deleteTransaction(tx.id);
                       }}
                       className="mt-6 w-full h-11 rounded-xl flex items-center justify-center"
                       style={{

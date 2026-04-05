@@ -82,11 +82,11 @@ export function EditTransactionModal({ transaction: tx, onClose }: Props) {
         date,
         paymentMethod: showPayment ? paymentMethod : 'transferencia',
         cardId: showCardSelect && cardId ? cardId : null,
-        status: tab === 'previsto' ? 'previsto' : 'realizado',
+        status: tab === 'previsto' || resolvedType === 'saida_futura' ? 'previsto' : 'realizado',
       });
       showToast({
         type: 'success',
-        title: 'Transacao atualizada',
+        title: 'Transação atualizada',
         message: `${description.toUpperCase()} — ${formatCurrency(numValue)}`,
         icon: '✏️',
       });
@@ -115,7 +115,7 @@ export function EditTransactionModal({ transaction: tx, onClose }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3">
           <h2 className="text-[#E6EDF3]" style={{ fontSize: '17px', fontWeight: 700 }}>
-            Editar Transacao
+            Editar Transação
           </h2>
           <button onClick={onClose} className="w-8 h-8 rounded-full bg-[#1C2128] flex items-center justify-center text-[#7D8590]">
             <X size={16} />
