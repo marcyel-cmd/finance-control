@@ -42,6 +42,12 @@ export class AuthController {
   async changePassword(req: Request, res: Response, next: NextFunction) {
     try {
       const { currentPassword, newPassword } = req.body;
+      if (!currentPassword || typeof currentPassword !== 'string') {
+        return res.status(400).json({ success: false, error: 'currentPassword é obrigatório' });
+      }
+      if (!newPassword || typeof newPassword !== 'string') {
+        return res.status(400).json({ success: false, error: 'newPassword é obrigatório' });
+      }
       await authService.changePassword(req.user!.userId, currentPassword, newPassword);
       res.json({ success: true, message: 'Senha alterada com sucesso' });
     } catch (error) { next(error); }

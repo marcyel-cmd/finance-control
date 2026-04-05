@@ -159,6 +159,10 @@ export function SettingsModals(props: SettingsModalsProps) {
             <div className="border-t border-[#30363D] p-4">
               <button
                 onClick={() => {
+                  localStorage.setItem('fc_notif_transactions', String(notifTransactions));
+                  localStorage.setItem('fc_notif_bills', String(notifBills));
+                  localStorage.setItem('fc_notif_cards', String(notifCards));
+                  localStorage.setItem('fc_notif_budgets', String(notifBudgets));
                   showToast({ type: 'success', title: 'Preferências salvas', message: 'Suas notificações foram atualizadas' });
                   setShowNotifications(false);
                 }}
@@ -261,7 +265,7 @@ export function SettingsModals(props: SettingsModalsProps) {
                     type={showNewPw ? 'text' : 'password'}
                     value={newPassword}
                     onChange={e => { setNewPassword(e.target.value); setSecurityError(''); }}
-                    placeholder="Mínimo 4 caracteres"
+                    placeholder="Mínimo 6 caracteres"
                     className="w-full pl-9 pr-10 py-2.5 rounded-lg outline-none"
                     style={{ background: '#0D1117', border: '1px solid #30363D', color: '#E6EDF3', fontSize: '13px' }}
                   />
@@ -297,7 +301,7 @@ export function SettingsModals(props: SettingsModalsProps) {
                 </p>
                 <ul className="space-y-1">
                   {[
-                    'Use pelo menos 4 caracteres',
+                    'Use pelo menos 6 caracteres',
                     'Combine letras e números',
                     'Não compartilhe sua senha',
                     'Atualize regularmente',
@@ -316,7 +320,7 @@ export function SettingsModals(props: SettingsModalsProps) {
               <button
                 onClick={async () => {
                   if (!currentPassword) { setSecurityError('Digite sua senha atual'); return; }
-                  if (newPassword.length < 4) { setSecurityError('Nova senha deve ter no mínimo 4 caracteres'); return; }
+                  if (newPassword.length < 6) { setSecurityError('Nova senha deve ter no mínimo 6 caracteres'); return; }
                   if (newPassword !== confirmPassword) { setSecurityError('As senhas não coincidem'); return; }
                   try {
                     await apiFetch('/auth/change-password', {

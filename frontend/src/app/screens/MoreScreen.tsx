@@ -322,11 +322,15 @@ function ConfigPanel({ onShowAbout, onShowHelp }: ConfigPanelProps) {
   const [showExport, setShowExport] = useState(false);
   const [showReports, setShowReports] = useState(false);
   
-  // Notification settings
-  const [notifTransactions, setNotifTransactions] = useState(true);
-  const [notifBills, setNotifBills] = useState(true);
-  const [notifCards, setNotifCards] = useState(true);
-  const [notifBudgets, setNotifBudgets] = useState(false);
+  // Notification settings — persisted to localStorage
+  const loadNotifPref = (key: string, fallback: boolean) => {
+    const v = localStorage.getItem(`fc_notif_${key}`);
+    return v === null ? fallback : v === 'true';
+  };
+  const [notifTransactions, setNotifTransactions] = useState(() => loadNotifPref('transactions', true));
+  const [notifBills, setNotifBills] = useState(() => loadNotifPref('bills', true));
+  const [notifCards, setNotifCards] = useState(() => loadNotifPref('cards', true));
+  const [notifBudgets, setNotifBudgets] = useState(() => loadNotifPref('budgets', false));
   
   // Security states
   const [currentPassword, setCurrentPassword] = useState('');
