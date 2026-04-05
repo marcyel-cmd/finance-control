@@ -385,11 +385,14 @@ export function DashboardScreen() {
   const prevMonthNum = period.month === 1 ? 12 : period.month - 1;
   const prevYear = period.month === 1 ? period.year - 1 : period.year;
   // Compute trend from monthlyData (last 2 months)
-  const saidasTrend = useMemo(() => {
-    if (monthlyData.length < 2) return 0;
+  // [DASH-02] FIX: retornar undefined (não 0) quando dados insuficientes —
+  // SummaryCard usa `trend !== undefined` para decidir se renderiza o indicador,
+  // então `0` causaria "↑ +0.0% vs anterior" em branco durante o fetch inicial.
+  const saidasTrend = useMemo((): number | undefined => {
+    if (monthlyData.length < 2) return undefined;
     const current = monthlyData.find(d => d.monthNum === period.month && d.year === period.year);
     const prev = monthlyData.find(d => d.monthNum === prevMonthNum && d.year === prevYear);
-    if (!prev?.saidas || !current) return 0;
+    if (!prev?.saidas || !current) return undefined;
     return ((current.saidas - prev.saidas) / prev.saidas) * 100;
   }, [monthlyData, period.month, period.year, prevMonthNum, prevYear]);
 

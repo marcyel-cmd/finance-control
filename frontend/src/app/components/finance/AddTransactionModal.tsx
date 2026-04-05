@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { X, ChevronDown, Check, Calendar, ChevronRight, CreditCard as CreditCardIcon, AlertTriangle, ArrowRight, Receipt } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Transaction, TransactionType, CreditCard } from '../../types';
@@ -25,7 +25,15 @@ export function AddTransactionModal({ onClose }: Props) {
   const [tab, setTab] = useState<TabType>('saida');
   const [description, setDescription] = useState('');
   const [value, setValue] = useState('');
+  // [ADD-01] FIX: 'alimentacao' pode não existir em contas com categorias personalizadas.
+  // Inicializa com 'alimentacao' e, assim que a lista de categorias carregar, faz fallback
+  // para a primeira categoria disponível caso 'alimentacao' não exista.
   const [category, setCategory] = useState('alimentacao');
+  useEffect(() => {
+    if (categories.length > 0 && !categories.find(c => c.id === category)) {
+      setCategory(categories[0].id);
+    }
+  }, [categories]);
   const [paymentMethod, setPaymentMethod] = useState('dinheiro');
   const [cardId, setCardId] = useState('');
   // [D-01] FIX: usar data de hoje como padrão, não dia 21 hardcoded

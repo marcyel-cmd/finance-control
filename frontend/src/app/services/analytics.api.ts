@@ -47,9 +47,10 @@ export const analyticsApi = {
     );
   },
 
+  // [API-01] FIX: URL estava errada (/monthly-data → /analytics/monthly)
   async monthlyData(months = 6) {
     return apiFetch<{ success: boolean; data: MonthlyData[] }>(
-      `/monthly-data?months=${months}`
+      `/analytics/monthly?months=${months}`
     );
   },
 

@@ -40,11 +40,12 @@ export function PredictedExpenseItem({ transaction, index = 0 }: Props) {
     [categories, transaction.category]
   );
 
+  // [PRED-01] FIX: usar verde para gasto baixo (< 70%) — antes retornava laranja
+  // em todos os casos abaixo de 90%, dando falsa impressão de alerta.
   const getStatusColor = () => {
-    if (percentage >= 100) return '#FF4757';
-    if (percentage >= 90) return '#FF4757';
-    if (percentage >= 70) return '#FFA502';
-    return '#FFA502';
+    if (percentage >= 90) return '#FF4757'; // vermelho: crítico
+    if (percentage >= 70) return '#FFA502'; // laranja: atenção
+    return '#00D97E';                       // verde: saudável
   };
 
   const statusColor = getStatusColor();
