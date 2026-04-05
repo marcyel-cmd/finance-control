@@ -303,6 +303,21 @@ export class TransactionService {
       year  = d.getFullYear();
     }
 
+    // [TX-SVC-01] FIX: recalcular billMonth/billYear quando a data muda em transação de cartão
+    // Sem isso, mover uma transação de um lado do closingDay para outro deixa fatura errada
+    if (data.date) {
+      const finalCardId = data.cardId !== undefined ? data.cardId : existing.cardId;
+      const finalType   = (data.type || existing.type) as string;
+      if (finalCardId && ['saida', 'saida_futura'].includes(finalType)) {
+        const cardForBill = await prisma.creditCard.findUnique({ where: { id: finalCardId } });
+        if (cardForBill) {
+          const b = getBillPeriod(new Date(data.date + 'T12:00:00'), cardForBill.closingDay);
+          data.billMonth = b.billMonth;
+          data.billYear  = b.billYear;
+        }
+      }
+    }
+
     // Reverter valor antigo no limite (operação atômica com decrement)
     if (existing.cardId && ['saida', 'saida_futura'].includes(existing.type) && existing.status === 'realizado') {
       await prisma.creditCard.updateMany({

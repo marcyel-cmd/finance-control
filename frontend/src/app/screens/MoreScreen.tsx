@@ -350,7 +350,8 @@ function ConfigPanel({ onShowAbout, onShowHelp }: ConfigPanelProps) {
   const handleExportCSV = () => {
     const headers = ['Data', 'Descri\u00E7\u00E3o', 'Tipo', 'Valor', 'Status', 'Categoria'];
     const rows = transactions.map(t => [
-      `${String(t.day).padStart(2, '0')}/${String(t.month).padStart(2, '0')}/${t.year}`,
+      // [MORE-01] FIX: Transaction não tem campo 'day' — extrair do campo 'date' (ISO "YYYY-MM-DD")
+      (() => { const [y, m, d] = (t.date || '').split('-'); return `${d || '??'}/${m || '??'}/${y || t.year}`; })(),
       `"${(t.description || '').replace(/"/g, '""')}"`,
       t.type,
       t.value.toFixed(2).replace('.', ','),
@@ -376,7 +377,8 @@ function ConfigPanel({ onShowAbout, onShowHelp }: ConfigPanelProps) {
       transactions: transactions.map(t => ({
         id: t.id, description: t.description, value: t.value,
         type: t.type, status: t.status, category: t.category,
-        date: `${t.year}-${String(t.month).padStart(2, '0')}-${String(t.day).padStart(2, '0')}`,
+        // [MORE-02] FIX: usar t.date diretamente (já é ISO "YYYY-MM-DD"); t.day não existe no tipo
+        date: t.date,
       })),
       cards: cards.map(c => ({ id: c.id, name: c.name, brand: c.brand, limit: c.limit, used: c.used })),
     };

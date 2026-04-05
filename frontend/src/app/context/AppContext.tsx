@@ -335,7 +335,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // ── Filtros locais (usam dados já carregados) ───────────
 
   const getFilteredTransactions = useCallback((month: number, year: number) => {
-    return transactions.filter(t => t.month === month && t.year === year);
+    // [TX-LIST-01] FIX: excluir 'pagamento_fatura' da listagem geral — são transações internas
+    // que não representam gastos reais do usuário e poluem a aba "Todas" da TransactionsScreen
+    return transactions.filter(t => t.month === month && t.year === year && (t.type as string) !== 'pagamento_fatura');
   }, [transactions]);
 
   const getSummary = useCallback((month: number, year: number) => {

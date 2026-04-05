@@ -200,9 +200,11 @@ function CardForm({ card, onSave, onCancel }: {
 }
 
 export function ManageCardsModal({ onClose }: Props) {
-  const { cards, addCard, updateCard, deleteCard } = useApp();
+  const { cards, addCard, updateCard, deleteCard, showToast } = useApp();
   const [view, setView] = useState<'list' | 'add' | 'edit'>('list');
   const [editingCard, setEditingCard] = useState<CreditCardType | undefined>();
+  // [CARDS-01] FIX: confirmação antes de excluir cartão
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const handleSave = async (c: CreditCardType) => {
     try {
@@ -214,7 +216,8 @@ export function ManageCardsModal({ onClose }: Props) {
       setView('list');
       setEditingCard(undefined);
     } catch (err: any) {
-      console.error('Erro ao salvar cartão:', err);
+      // [CARDS-02] FIX: exibir toast de erro ao usuário em vez de console.error silencioso
+      showToast({ type: 'error', title: 'Erro ao salvar cartão', message: err.message || 'Tente novamente', icon: '❌' });
     }
   };
 
@@ -269,12 +272,32 @@ export function ManageCardsModal({ onClose }: Props) {
                   >
                     <Pencil size={15} />
                   </button>
-                  <button
-                    onClick={() => deleteCard(card.id)}
-                    className="p-2 rounded-lg text-[#FF4757] hover:bg-[#FF4757]/10 transition-all"
-                  >
-                    <Trash2 size={15} />
-                  </button>
+                  {/* [CARDS-01] FIX: confirmação de dois passos antes de excluir */}
+                  {confirmDeleteId === card.id ? (
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={async () => { await deleteCard(card.id); setConfirmDeleteId(null); }}
+                        className="px-2 py-1 rounded-md"
+                        style={{ background: 'rgba(255,71,87,0.15)', border: '1px solid rgba(255,71,87,0.3)', fontSize: '10px', fontWeight: 600, color: '#FF4757' }}
+                      >
+                        Excluir
+                      </button>
+                      <button
+                        onClick={() => setConfirmDeleteId(null)}
+                        className="px-2 py-1 rounded-md"
+                        style={{ background: '#21262D', border: '1px solid #30363D', fontSize: '10px', color: '#7D8590' }}
+                      >
+                        Não
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmDeleteId(card.id)}
+                      className="p-2 rounded-lg text-[#FF4757] hover:bg-[#FF4757]/10 transition-all"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  )}
                 </div>
               ))}
 
