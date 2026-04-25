@@ -95,3 +95,43 @@ self.addEventListener('message', (event) => {
     }
   }
 });
+
+// ── Web Push ─────────────────────────────────────────────────
+// Recebe payload do backend e mostra notificação nativa.
+
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
+  let payload = {};
+  try { payload = event.data.json(); } catch { payload = { title: 'Finanças', body: event.data.text() }; }
+
+  const title = payload.title || 'FinanceControl';
+  const options = {
+    body: payload.body || '',
+    icon: payload.icon || '/icons/icon.svg',
+    badge: payload.badge || '/icons/icon.svg',
+    tag:   payload.tag || 'fc-default',
+    data:  { url: payload.url || '/', ...(payload.data || {}) },
+    renotify: true,
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// Click na notificação: foca aba existente ou abre nova.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data?.url || '/';
+  event.waitUntil((async () => {
+    const allClients = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+    // Se já tem aba do app aberta, foca e navega
+    for (const client of allClients) {
+      const url = new URL(client.url);
+      if (url.origin === self.location.origin) {
+        await client.focus();
+        if ('navigate' in client) await client.navigate(targetUrl);
+        return;
+      }
+    }
+    // Senão, abre nova
+    if (clients.openWindow) await clients.openWindow(targetUrl);
+  })());
+});

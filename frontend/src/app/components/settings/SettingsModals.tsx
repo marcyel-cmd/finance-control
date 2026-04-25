@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Bell, Shield, Download, FileText, X, Check, Eye, EyeOff, Lock, ChevronRight } from 'lucide-react';
+import { Bell, Shield, Download, FileText, X, Check, Eye, EyeOff, Lock, ChevronRight, Loader2, BellOff } from 'lucide-react';
 import { LoadingModal } from './LoadingModal';
 import { authApi } from '../../services/auth.api';
 import { apiFetch } from '../../services/api';
+import { usePushNotifications } from '../../hooks/usePushNotifications';
 
 interface SettingsModalsProps {
   // Notifications
@@ -83,6 +84,30 @@ export function SettingsModals(props: SettingsModalsProps) {
     onExportJSON,
   } = props;
 
+  const push = usePushNotifications();
+
+  const handlePushToggle = async () => {
+    if (push.status === 'subscribed') {
+      const ok = await push.unsubscribe();
+      if (ok) showToast({ type: 'info', title: 'Push desativado', message: 'Você não receberá notificações neste dispositivo.' });
+    } else {
+      const ok = await push.subscribe();
+      if (ok) showToast({ type: 'success', title: 'Push ativado', message: 'Você vai receber notificações neste dispositivo.' });
+      else if (push.error) showToast({ type: 'error', title: 'Falha ao ativar', message: push.error });
+    }
+  };
+
+  const handlePushTest = async () => {
+    const res = await push.sendTest();
+    if (res?.skipped) {
+      showToast({ type: 'error', title: 'Push não configurado', message: 'VAPID keys ausentes no servidor.' });
+    } else if (res && res.sent > 0) {
+      showToast({ type: 'success', title: 'Notificação enviada!', message: `Enviada para ${res.sent} dispositivo(s).` });
+    } else {
+      showToast({ type: 'info', title: 'Nada enviado', message: 'Nenhum dispositivo inscrito ainda.' });
+    }
+  };
+
   return (
     <>
       {/* Notifications Modal */}
@@ -123,6 +148,59 @@ export function SettingsModals(props: SettingsModalsProps) {
 
             {/* Content */}
             <div className="p-6 space-y-3.5">
+              {/* ── Push web (notificações nativas) ── */}
+              <div className="rounded-xl p-4" style={{ background: 'linear-gradient(135deg, #4A90D915, #A855F708)', border: '1px solid #4A90D930' }}>
+                <div className="flex items-start gap-3">
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{
+                      background: push.status === 'subscribed' ? '#00D97E20' : '#4A90D920',
+                      border: `1px solid ${push.status === 'subscribed' ? '#00D97E40' : '#4A90D940'}`,
+                    }}
+                  >
+                    {push.status === 'subscribed' ? <Bell size={18} color="#00D97E" /> : <BellOff size={18} color="#4A90D9" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p style={{ fontSize: '13px', fontWeight: 600, color: '#E6EDF3' }}>Notificações Push</p>
+                    <p style={{ fontSize: '11px', color: '#7D8590' }}>
+                      {push.status === 'unsupported' && 'Navegador não suporta'}
+                      {push.status === 'not_configured' && 'Servidor sem VAPID keys configuradas'}
+                      {push.status === 'denied' && 'Permissão negada — habilite nas configurações do navegador'}
+                      {push.status === 'idle' && 'Receba alertas mesmo com o app fechado'}
+                      {push.status === 'subscribed' && 'Ativo neste dispositivo'}
+                      {push.status === 'error' && (push.error || 'Erro')}
+                    </p>
+                  </div>
+                  <button
+                    onClick={handlePushToggle}
+                    disabled={push.loading || push.status === 'unsupported' || push.status === 'not_configured' || push.status === 'denied'}
+                    className="w-11 h-6 rounded-full flex items-center transition-all px-0.5 disabled:opacity-40"
+                    style={{
+                      background: push.status === 'subscribed' ? '#00D97E' : '#30363D',
+                      justifyContent: push.status === 'subscribed' ? 'flex-end' : 'flex-start',
+                    }}
+                  >
+                    {push.loading ? (
+                      <Loader2 size={14} className="animate-spin text-white mx-auto" />
+                    ) : (
+                      <div className="w-5 h-5 rounded-full bg-white shadow transition-all" />
+                    )}
+                  </button>
+                </div>
+                {push.status === 'subscribed' && (
+                  <button
+                    onClick={handlePushTest}
+                    disabled={push.loading}
+                    className="w-full mt-3 py-2 rounded-lg disabled:opacity-50"
+                    style={{ background: '#0D1117', border: '1px solid #30363D', color: '#4A90D9', fontSize: '11px', fontWeight: 600 }}
+                  >
+                    Enviar notificação de teste
+                  </button>
+                )}
+              </div>
+
+              <div className="border-t border-[#30363D]/40 my-2" />
+
               {[
                 { id: 'transactions', label: 'Novas Transações', desc: 'Alerta ao adicionar nova transação', state: notifTransactions, setState: setNotifTransactions, icon: '💰', color: '#00D97E' },
                 { id: 'bills', label: 'Contas a Pagar', desc: 'Lembrete 3 dias antes do vencimento', state: notifBills, setState: setNotifBills, icon: '📅', color: '#FFA502' },

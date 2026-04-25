@@ -1,5 +1,6 @@
 import { prisma } from '../lib/prisma';
 import { AppError } from '../middlewares/errorHandler';
+import { pushSubscriptionService } from './pushSubscription.service';
 
 export class NotificationService {
 
@@ -55,7 +56,7 @@ export class NotificationService {
     type: string; title: string; message: string; icon: string;
     actionLabel?: string; actionRoute?: string; relatedAmount?: number;
   }) {
-    return prisma.notification.create({
+    const notification = await prisma.notification.create({
       data: {
         userId, type: data.type, title: data.title,
         message: data.message, date: new Date(), icon: data.icon,
@@ -63,6 +64,18 @@ export class NotificationService {
         relatedAmount: data.relatedAmount,
       },
     });
+
+    // Dispara push em paralelo. Falha silenciosa — push é best-effort,
+    // a notificação in-app é o canal principal.
+    pushSubscriptionService.sendToUser(userId, {
+      title: data.title,
+      body:  data.message,
+      url:   data.actionRoute || '/',
+      tag:   `notif_${notification.id}`,
+      data:  { notificationId: notification.id, type: data.type },
+    }).catch(err => console.warn('[push] erro ao enviar:', err.message));
+
+    return notification;
   }
 
   // ── Triggers autom\u00E1ticos ────────────────────────────────
