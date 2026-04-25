@@ -7,6 +7,7 @@ import {
 } from 'recharts';
 import { Header } from '../components/layout/Header';
 import { ResponsiveDashboard } from '../components/layout/ResponsiveDashboard';
+import { QuickTemplatesGrid } from '../components/finance/QuickTemplatesGrid';
 import { SummaryCard } from '../components/finance/SummaryCard';
 import { TransactionItem } from '../components/finance/TransactionItem';
 import { PredictedExpenseItem } from '../components/finance/PredictedExpenseItem';
@@ -596,7 +597,12 @@ export function DashboardScreen() {
     <div className="flex flex-col">
       <Header title="FinanceControl" subtitle="Controle Financeiro Pessoal" />
 
-      <div className="px-4 md:px-6 lg:px-8 pt-4 pb-4">
+      {/* Atalhos rápidos — grid de templates 1-toque com os mais usados */}
+      <div className="pt-3 pb-1">
+        <QuickTemplatesGrid />
+      </div>
+
+      <div className="px-4 md:px-6 lg:px-8 pt-3 pb-4">
         <ResponsiveDashboard
           summaryCards={summaryCards}
           chart={chart}

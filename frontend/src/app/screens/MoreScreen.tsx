@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Moon, Sun, Shield, Bell, Download, HelpCircle, ChevronRight,
   User, Palette, Database, FileText, Monitor, Tag, Settings,
@@ -12,6 +12,9 @@ import { useDeviceType } from '../hooks/useDeviceType';
 import { Category, AppUser } from '../types';
 import { SettingsModals } from '../components/settings/SettingsModals';
 import { RecurringManagement } from '../components/finance/RecurringManagement';
+import { TransactionTemplatesManagement } from '../components/finance/TransactionTemplatesManagement';
+import { useSearchParams } from 'react-router';
+import { Zap } from 'lucide-react';
 
 const formatCurrency = (v: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
@@ -66,7 +69,7 @@ function SectionHeader({ title }: { title: string }) {
 
 // ─── Tab Types ────────────────────────────────────────────────────────────────
 
-type MoreTab = 'config' | 'categories' | 'recurring';
+type MoreTab = 'config' | 'categories' | 'recurring' | 'templates';
 
 // ─── Category Management Panel ────────────────────────────────────────────────
 
@@ -909,31 +912,47 @@ function ConfigPanel({ onShowAbout, onShowHelp }: ConfigPanelProps) {
 // ─── Main Screen ─────────────────────────────────────────────────────────────
 
 export function MoreScreen() {
-  const [activeTab, setActiveTab] = useState<MoreTab>('config');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = (searchParams.get('tab') as MoreTab) || 'config';
+  const [activeTab, setActiveTab] = useState<MoreTab>(
+    ['config', 'categories', 'recurring', 'templates'].includes(initialTab) ? initialTab : 'config'
+  );
   const [showAboutModal, setShowAboutModal] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
+
+  // Sincroniza ?tab= com a aba ativa pra o link "Gerenciar" da home funcionar
+  useEffect(() => {
+    if (searchParams.get('tab') !== activeTab) {
+      const next = new URLSearchParams(searchParams);
+      next.set('tab', activeTab);
+      setSearchParams(next, { replace: true });
+    }
+  }, [activeTab]);
 
   return (
     <div className="flex flex-col">
       <Header
         title={
           activeTab === 'config' ? 'Configurações' :
-          activeTab === 'categories' ? 'Categorias' : 'Recorrências'
+          activeTab === 'categories' ? 'Categorias' :
+          activeTab === 'recurring' ? 'Recorrências' : 'Atalhos'
         }
         subtitle={
           activeTab === 'config' ? 'Personalização e conta' :
           activeTab === 'categories' ? 'Gerencie suas categorias' :
-          'Lançamentos automáticos das contas fixas'
+          activeTab === 'recurring' ? 'Lançamentos automáticos das contas fixas' :
+          'Botões de 1 toque para suas transações repetitivas'
         }
       />
 
       {/* Tab Switcher */}
-      <div className="px-4 pt-2 pb-3">
-        <div className="flex gap-1 p-1 rounded-xl" style={{ background: '#161B22', border: '1px solid #30363D' }}>
+      <div className="px-4 pt-2 pb-3 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+        <div className="flex gap-1 p-1 rounded-xl" style={{ background: '#161B22', border: '1px solid #30363D', minWidth: 'max-content' }}>
           {[
             { id: 'config' as MoreTab, icon: <Settings size={14} />, label: 'Config' },
             { id: 'categories' as MoreTab, icon: <Tag size={14} />, label: 'Categorias' },
             { id: 'recurring' as MoreTab, icon: <RefreshCw size={14} />, label: 'Recorrências' },
+            { id: 'templates' as MoreTab, icon: <Zap size={14} />, label: 'Atalhos' },
           ].map(tab => (
             <button
               key={tab.id}
@@ -959,6 +978,7 @@ export function MoreScreen() {
         {activeTab === 'config' && <ConfigPanel onShowAbout={setShowAboutModal} onShowHelp={setShowHelpModal} />}
         {activeTab === 'categories' && <CategoryManagement />}
         {activeTab === 'recurring' && <RecurringManagement />}
+        {activeTab === 'templates' && <TransactionTemplatesManagement />}
       </div>
 
       {/* About Modal */}

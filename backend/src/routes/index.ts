@@ -8,6 +8,7 @@ import { analyticsRouter } from './analytics.routes';
 import { invoiceRouter } from './invoice.routes';
 import { userRouter } from './user.routes';
 import { recurringRouter } from './recurring.routes';
+import { transactionTemplateRouter } from './transactionTemplate.routes';
 import { authMiddleware } from '../middlewares/auth.middleware';
 import { analyticsController } from '../controllers/analytics.controller';
 
@@ -22,6 +23,7 @@ router.use('/analytics',     analyticsRouter);
 router.use('/invoice',       invoiceRouter);
 router.use('/users',         userRouter);
 router.use('/recurring',     recurringRouter);
+router.use('/transaction-templates', transactionTemplateRouter);
 
 // Atalho /monthly-data (mesma l\u00F3gica que /analytics/monthly)
 router.get('/monthly-data', authMiddleware, (req, res, next) => analyticsController.monthly(req, res, next));
