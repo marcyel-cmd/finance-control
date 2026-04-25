@@ -29,6 +29,18 @@ export class InvoiceController {
       res.json({ success: true, data: result });
     } catch (error) { next(error); }
   }
+
+  // Endpoint pra cupom fiscal / PIX / comprovante avulso. Devolve UMA transação
+  // sugerida que o usuário confirma e cria via /transactions normal.
+  async parseReceipt(req: Request, res: Response, next: NextFunction) {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ success: false, error: 'Arquivo não enviado' });
+      }
+      const result = await invoiceService.parseReceipt(req.file.path, req.file.mimetype, req.user!.userId);
+      res.json({ success: true, data: result });
+    } catch (error) { next(error); }
+  }
 }
 
 export const invoiceController = new InvoiceController();

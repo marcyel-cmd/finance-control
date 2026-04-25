@@ -50,11 +50,26 @@ async parse(filePath: string, _mime: string, _userId: string) {
     const categories = await prisma.category.findMany({ select: { id: true, label: true } });
     const text = await this.extractText(filePath);
     const result = await this.analyzeWithGemini(text, categories);
-    
+
     if (!result.transactions || result.transactions.length === 0) {
       throw new AppError(400, 'Nenhuma transação encontrada no arquivo.');
     }
     return result;
+  } finally {
+    fs.unlink(filePath, () => {});
+  }
+}
+
+// Processa cupom fiscal / comprovante PIX / recibo. Sempre retorna 1 transação.
+// Diferente de parse() (que é pra fatura/extrato com várias transações).
+async parseReceipt(filePath: string, _mime: string, _userId: string) {
+  try {
+    const { analyzeReceiptWithGemini } = await import('../lib/gemini');
+    const categories = await prisma.category.findMany({ select: { id: true, label: true } });
+    const result = await analyzeReceiptWithGemini(filePath, categories);
+    return result;
+  } catch (err: any) {
+    throw new AppError(500, err.message || 'Erro ao processar cupom');
   } finally {
     fs.unlink(filePath, () => {});
   }

@@ -1,12 +1,15 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router';
 import { BottomNav } from './BottomNav';
 import { Sidebar } from './Sidebar';
 import { AnimatedOutlet } from './AnimatedOutlet';
 import { AddTransactionModal } from '../finance/AddTransactionModal';
 import { ManageCardsModal } from '../finance/ManageCardsModal';
+import { ImportInvoiceModal } from '../finance/ImportInvoiceModal';
+import { ConfirmReceiptModal } from '../finance/ConfirmReceiptModal';
 import { NotificationPanel } from '../ui/NotificationPanel';
 import { ToastContainer } from '../ui/ToastContainer';
+import { QuickActionFab } from './QuickActionFab';
 import { useApp } from '../../context/AppContext';
 import { useDeviceType } from '../../hooks/useDeviceType';
 
@@ -21,6 +24,22 @@ export function MobileShell() {
   const deviceType = useDeviceType();
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Dois fluxos distintos disparados pelo FAB:
+  // - showImport (com capturedFile?): "Importar fatura" — várias transações de fatura/extrato
+  // - receiptFile: "Foto de cupom" — UMA transação avulsa (cupom fiscal/PIX/comprovante)
+  const [showImport, setShowImport] = useState(false);
+  const [capturedFile, setCapturedFile] = useState<File | undefined>(undefined);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+
+  const handlePhotoCapture = (file: File) => {
+    setReceiptFile(file);
+  };
+
+  const handleImportClose = () => {
+    setShowImport(false);
+    setCapturedFile(undefined);
+  };
 
   // ── Swipe navigation ──────────────────────────────────────────────────────
   const swipeStartX = useRef<number | null>(null);
@@ -69,14 +88,16 @@ export function MobileShell() {
             </div>
           </div>
         </div>
-        
+
         {/* Modals */}
         {showAddModal && <AddTransactionModal onClose={() => setShowAddModal(false)} />}
         {showManageCards && <ManageCardsModal onClose={() => setShowManageCards(false)} />}
-        
+        {showImport && <ImportInvoiceModal initialFile={capturedFile} onClose={handleImportClose} />}
+        {receiptFile && <ConfirmReceiptModal file={receiptFile} onClose={() => setReceiptFile(null)} />}
+
         {/* Notification Panel */}
         <NotificationPanel />
-        
+
         {/* Toast Notifications */}
         <ToastContainer />
       </div>
@@ -112,17 +133,13 @@ export function MobileShell() {
             className="fixed bottom-20 z-40 pointer-events-none"
             style={{ left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth }}
           >
-            <div className="relative pointer-events-none" style={{ height: 0 }}>
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="absolute right-4 -top-12 pointer-events-auto w-14 h-14 md:w-16 md:h-16 rounded-full bg-[#00D97E] flex items-center justify-center active:scale-95 transition-all hover:bg-[#00C070]"
-                style={{ boxShadow: '0 8px 32px rgba(0, 217, 126, 0.4)' }}
-              >
-                <svg width={deviceType === 'tablet' ? '28' : '24'} height={deviceType === 'tablet' ? '28' : '24'} fill="none" stroke="#0D1117" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="12" y1="5" x2="12" y2="19" />
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                </svg>
-              </button>
+            <div className="relative" style={{ height: 0 }}>
+              <QuickActionFab
+                size={deviceType === 'tablet' ? 'tablet' : 'mobile'}
+                onManual={() => setShowAddModal(true)}
+                onPhoto={handlePhotoCapture}
+                onImportInvoice={() => { setCapturedFile(undefined); setShowImport(true); }}
+              />
             </div>
           </div>
         )}
@@ -130,6 +147,8 @@ export function MobileShell() {
         {/* Modals */}
         {showAddModal && <AddTransactionModal onClose={() => setShowAddModal(false)} />}
         {showManageCards && <ManageCardsModal onClose={() => setShowManageCards(false)} />}
+        {showImport && <ImportInvoiceModal initialFile={capturedFile} onClose={handleImportClose} />}
+        {receiptFile && <ConfirmReceiptModal file={receiptFile} onClose={() => setReceiptFile(null)} />}
 
         {/* Notification Panel */}
         <NotificationPanel />

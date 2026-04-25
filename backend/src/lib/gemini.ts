@@ -89,6 +89,109 @@ Responda APENAS em JSON válido: {"insights":["texto1","texto2","texto3"]}`;
   }
 }
 
+// Analisa cupom fiscal de venda, comprovante PIX, recibo, foto de recibo de
+// pagamento etc. Diferente de fatura/extrato (várias linhas → várias
+// transações), aqui sempre devolve UMA transação só (o total da compra).
+//
+// Retorno: { description, value, date, categoryId, paymentMethodGuess?, confidence }
+export interface ExtractedReceipt {
+  description: string;        // estabelecimento ou destinatário (MAIÚSCULAS)
+  value: number;              // valor total positivo
+  date: string;               // YYYY-MM-DD (hoje se não detectado)
+  categoryId: string;         // de uma das categorias passadas
+  paymentMethodGuess?: string; // 'credito' | 'debito' | 'pix' | 'dinheiro' | undefined
+  confidence: number;
+  notes?: string;             // qualquer detalhe útil (ex: "12 itens, 2 categorias")
+}
+
+export async function analyzeReceiptWithGemini(
+  imagePath: string,
+  categories: { id: string; label: string }[],
+): Promise<ExtractedReceipt> {
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+  const catList = categories.map(c => `${c.id}: ${c.label}`).join('\n');
+
+  const systemPrompt = `Você é especialista em ler cupons fiscais brasileiros (NFC-e, SAT, recibos PIX, comprovantes de pagamento, faturas de água/luz/internet).
+
+Sua tarefa: extrair UMA ÚNICA transação representando o total dessa compra/pagamento. Não liste itens individuais.
+
+Identifique:
+- Estabelecimento OU destinatário do pagamento (use nome curto em MAIÚSCULAS, ex: "MERCADO HARGER", "PIX JOÃO SILVA", "ENEL DISTRIBUIÇÃO")
+- Valor TOTAL da compra (procure "TOTAL", "VALOR PAGO", "VALOR TOTAL R$"). Use número positivo (float, ponto decimal).
+- Data da compra/pagamento (formato YYYY-MM-DD). Use a data IMPRESSA no cupom, NÃO a data atual.
+- Categoria mais apropriada baseado no estabelecimento ou tipo de pagamento.
+- Método de pagamento se conseguir identificar ("FORMA DE PAGAMENTO: Cartão Crédito" → "credito"; PIX → "pix"; etc).
+
+Categorias disponíveis (use EXATAMENTE estes IDs no campo categoryId):
+${catList}
+
+Mapeamento típico:
+- Mercado/supermercado/padaria/açougue → categoria de alimentação
+- Posto de gasolina → transporte
+- Farmácia/drogaria → saúde
+- Restaurante/lanchonete → alimentação
+- Conta de luz/água/internet/telefone → contas/serviços
+- PIX para pessoa física → outros (ou inferir pelo contexto)
+
+Responda APENAS com JSON válido. Sem markdown, sem explicações.
+
+Formato exato:
+{
+  "description": "MERCADO HARGER",
+  "value": 138.65,
+  "date": "2026-04-23",
+  "categoryId": "alimentacao",
+  "paymentMethodGuess": "credito",
+  "confidence": 0.95,
+  "notes": "27 itens"
+}`;
+
+  const buf = fs.readFileSync(imagePath);
+  const base64 = buf.toString('base64');
+  const ext = imagePath.toLowerCase();
+  const mime = ext.endsWith('.png')  ? 'image/png'
+             : ext.endsWith('.webp') ? 'image/webp'
+             : ext.endsWith('.heic') ? 'image/heic'
+             : ext.endsWith('.pdf')  ? 'application/pdf'
+             : 'image/jpeg';
+
+  const content = [
+    { inlineData: { mimeType: mime, data: base64 } },
+    { text: 'Extraia o total dessa compra/pagamento como UMA transação única.' },
+  ];
+
+  try {
+    const response = await model.generateContent({
+      contents: [{ role: 'user', parts: content }],
+      systemInstruction: systemPrompt,
+      generationConfig: { temperature: 0.1 },
+    });
+
+    const text = response.response.text();
+    const clean = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const parsed = JSON.parse(clean);
+
+    // Sanity checks
+    if (!parsed.description || typeof parsed.value !== 'number' || parsed.value <= 0) {
+      throw new Error('Gemini retornou campos inválidos');
+    }
+
+    // Garantir categoria válida (fallback pra primeira disponível)
+    const validCat = categories.find(c => c.id === parsed.categoryId);
+    if (!validCat) parsed.categoryId = categories[0]?.id || 'outros';
+
+    // Garantir data válida (fallback pra hoje)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(parsed.date)) {
+      const t = new Date();
+      parsed.date = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+    }
+
+    return parsed as ExtractedReceipt;
+  } catch (error: any) {
+    throw new Error(`Erro ao processar cupom com Gemini: ${error.message}`);
+  }
+}
+
 export async function analyzeInvoiceWithGemini(
   textOrImagePath: string,
   isImage: boolean,

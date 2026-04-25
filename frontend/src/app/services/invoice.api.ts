@@ -19,12 +19,28 @@ export interface ParseResult {
   };
 }
 
+export interface ParsedReceipt {
+  description: string;
+  value: number;
+  date: string;
+  categoryId: string;
+  paymentMethodGuess?: string;
+  confidence: number;
+  notes?: string;
+}
+
 export const invoiceApi = {
   async parse(file: File, cardId: string) {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('cardId', cardId);
     return apiUpload<{ success: boolean; data: ParseResult }>('/invoice/parse', formData);
+  },
+
+  async parseReceipt(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    return apiUpload<{ success: boolean; data: ParsedReceipt }>('/invoice/parse-receipt', formData);
   },
 
   async importTransactions(
