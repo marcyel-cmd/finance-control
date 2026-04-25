@@ -3,7 +3,7 @@ import {
   Moon, Sun, Shield, Bell, Download, HelpCircle, ChevronRight,
   User, Palette, Database, FileText, Monitor, Tag, Settings,
   Plus, Pencil, Trash2, Check, ChevronLeft, LogOut, Eye, EyeOff,
-  Lock, Mail, UserPlus, Users, Crown, X
+  Lock, Mail, UserPlus, Users, Crown, X, RefreshCw
 } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { Header } from '../components/layout/Header';
@@ -11,6 +11,7 @@ import { useApp } from '../context/AppContext';
 import { useDeviceType } from '../hooks/useDeviceType';
 import { Category, AppUser } from '../types';
 import { SettingsModals } from '../components/settings/SettingsModals';
+import { RecurringManagement } from '../components/finance/RecurringManagement';
 
 const formatCurrency = (v: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
@@ -65,7 +66,7 @@ function SectionHeader({ title }: { title: string }) {
 
 // ─── Tab Types ────────────────────────────────────────────────────────────────
 
-type MoreTab = 'config' | 'categories';
+type MoreTab = 'config' | 'categories' | 'recurring';
 
 // ─── Category Management Panel ────────────────────────────────────────────────
 
@@ -915,16 +916,24 @@ export function MoreScreen() {
   return (
     <div className="flex flex-col">
       <Header
-        title={activeTab === 'config' ? 'Configurações' : 'Categorias'}
-        subtitle={activeTab === 'config' ? 'Personalização e conta' : 'Gerencie suas categorias'}
+        title={
+          activeTab === 'config' ? 'Configurações' :
+          activeTab === 'categories' ? 'Categorias' : 'Recorrências'
+        }
+        subtitle={
+          activeTab === 'config' ? 'Personalização e conta' :
+          activeTab === 'categories' ? 'Gerencie suas categorias' :
+          'Lançamentos automáticos das contas fixas'
+        }
       />
 
       {/* Tab Switcher */}
       <div className="px-4 pt-2 pb-3">
         <div className="flex gap-1 p-1 rounded-xl" style={{ background: '#161B22', border: '1px solid #30363D' }}>
           {[
-            { id: 'config' as MoreTab, icon: <Settings size={14} />, label: 'Configurações' },
+            { id: 'config' as MoreTab, icon: <Settings size={14} />, label: 'Config' },
             { id: 'categories' as MoreTab, icon: <Tag size={14} />, label: 'Categorias' },
+            { id: 'recurring' as MoreTab, icon: <RefreshCw size={14} />, label: 'Recorrências' },
           ].map(tab => (
             <button
               key={tab.id}
@@ -947,7 +956,9 @@ export function MoreScreen() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto px-4 pb-28" style={{ scrollbarWidth: 'none' }}>
-        {activeTab === 'config' ? <ConfigPanel onShowAbout={setShowAboutModal} onShowHelp={setShowHelpModal} /> : <CategoryManagement />}
+        {activeTab === 'config' && <ConfigPanel onShowAbout={setShowAboutModal} onShowHelp={setShowHelpModal} />}
+        {activeTab === 'categories' && <CategoryManagement />}
+        {activeTab === 'recurring' && <RecurringManagement />}
       </div>
 
       {/* About Modal */}

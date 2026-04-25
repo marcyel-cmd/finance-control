@@ -19,10 +19,11 @@ model User {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  transactions  Transaction[]
-  cards         CreditCard[]
-  notifications Notification[]
-  passkeys      Passkey[]
+  transactions       Transaction[]
+  cards              CreditCard[]
+  notifications      Notification[]
+  passkeys           Passkey[]
+  recurringTemplates RecurringTemplate[]
 
   @@map("users")
 }
@@ -42,8 +43,9 @@ model CreditCard {
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transactions Transaction[]
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions       Transaction[]
+  recurringTemplates RecurringTemplate[]
 
   @@map("credit_cards")
 }
@@ -65,20 +67,25 @@ model Transaction {
 
   linkedPreviewId String? @map("linked_preview_id")
 
-  installment       Boolean @default(false)
-  installmentTotal  Int?    @map("installment_total")
-  installmentNumber Int?    @map("installment_number")
-  parentId          String? @map("parent_id")
-  totalValue        Decimal? @db.Decimal(15, 2) @map("total_value")
+  installment       Boolean  @default(false)
+  installmentTotal  Int?     @map("installment_total")
+  installmentNumber Int?     @map("installment_number")
+  parentId          String?  @map("parent_id")
+  totalValue        Decimal? @map("total_value") @db.Decimal(15, 2)
 
   billMonth Int? @map("bill_month")
   billYear  Int? @map("bill_year")
 
+  // Origem da transação se foi criada automaticamente por uma recorrência.
+  // Null = lançada manualmente, importada ou via outras vias.
+  recurringTemplateId String? @map("recurring_template_id")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  user User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  card CreditCard? @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card              CreditCard?        @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  recurringTemplate RecurringTemplate? @relation(fields: [recurringTemplateId], references: [id], onDelete: SetNull)
 
   @@index([userId, month, year])
   @@index([userId, category])
@@ -88,6 +95,7 @@ model Transaction {
   @@index([cardId, billMonth, billYear])
   @@index([parentId])
   @@index([linkedPreviewId])
+  @@index([recurringTemplateId, date])
   @@map("transactions")
 }
 
@@ -112,7 +120,7 @@ model Notification {
   actionLabel   String?  @map("action_label")
   actionRoute   String?  @map("action_route")
   actionDone    Boolean  @default(false) @map("action_done")
-  relatedAmount Decimal? @db.Decimal(15, 2) @map("related_amount")
+  relatedAmount Decimal? @map("related_amount") @db.Decimal(15, 2)
   createdAt     DateTime @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -135,6 +143,43 @@ model Passkey {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("passkeys")
+}
+
+// Template que descreve uma transação recorrente.
+// Um job diário cria as transações reais conforme a frequência aqui definida.
+// Cria com status "pendente" — usuário confirma na home ou via notificação.
+model RecurringTemplate {
+  id            String  @id @default(uuid())
+  userId        String  @map("user_id")
+  type          String // entrada, saida
+  description   String
+  category      String
+  value         Decimal @db.Decimal(15, 2)
+  paymentMethod String  @map("payment_method")
+  cardId        String? @map("card_id")
+
+  // Cadência. Por enquanto: monthly (dayOfMonth), weekly (weekday), daily.
+  frequency  String
+  dayOfMonth Int?   @map("day_of_month") // 1-31, usado em monthly
+  weekday    Int? // 0=domingo … 6=sábado, usado em weekly
+
+  startDate DateTime  @map("start_date") @db.Date
+  endDate   DateTime? @map("end_date") @db.Date
+
+  active          Boolean   @default(true)
+  // Marca o último dia (sem hora) em que o job gerou transação a partir deste template.
+  // Combinado com o índice (recurringTemplateId, date) na Transaction garante idempotência.
+  lastGeneratedAt DateTime? @map("last_generated_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card         CreditCard?   @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  transactions Transaction[]
+
+  @@index([userId, active])
+  @@map("recurring_templates")
 }
 
 model WebAuthnChallenge {
