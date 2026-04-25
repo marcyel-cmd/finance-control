@@ -48,11 +48,19 @@ npm ci
 log "Compilando frontend com Vite..."
 npm run build
 
-# ── 6. Banco de dados: migrations ────────────────────────────
-# Executado APÓS builds para possibilitar rollback rápido
+# ── 6. Banco de dados: migrations + sync de schema ───────────
+# Executado APÓS builds para possibilitar rollback rápido.
+#
+# `migrate deploy` aplica migrations versionadas (cycles 1-9 do QA).
+# `db push` aplica modelos adicionados depois disso via prisma db push em dev
+# (RecurringTemplate, TransactionTemplate, PushSubscription, recurring_template_id
+# em transactions). É idempotente — se o banco já tem, não faz nada.
+# Quando estabilizarmos o schema, consolidar tudo numa migration formal.
 log "Executando migrations do PostgreSQL..."
 cd "$BACKEND_DIR"
 npx prisma migrate deploy
+log "Sincronizando schema (db push) para modelos sem migration formal..."
+npx prisma db push --accept-data-loss=false --skip-generate
 
 # ── 7. Copiar frontend para pasta do Nginx ───────────────────
 log "Copiando build do frontend para $NGINX_STATIC..."
