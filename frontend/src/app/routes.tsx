@@ -7,6 +7,8 @@ import { CardsScreen } from './screens/CardsScreen';
 import { AnalyticsScreen } from './screens/AnalyticsScreen';
 import { MoreScreen } from './screens/MoreScreen';
 import { LoginScreen } from './screens/LoginScreen';
+import { QuickAddScreen } from './screens/QuickAddScreen';
+import { ShareTargetScreen } from './screens/ShareTargetScreen';
 
 // Auth guard — verifica token JWT
 function requireAuth() {
@@ -43,6 +45,15 @@ export const router = createBrowserRouter([
           { path: 'cartoes', Component: CardsScreen },
           { path: 'analises', Component: AnalyticsScreen },
           { path: 'mais', Component: MoreScreen },
+        ],
+      },
+      // Rotas "leves" pra captura rápida via PWA shortcut e Web Share Target.
+      // Não usam MobileShell pra evitar bottom nav/FAB sobrepondo o modal.
+      {
+        loader: requireAuth,
+        children: [
+          { path: 'quick', Component: QuickAddScreen },
+          { path: 'share-target', Component: ShareTargetScreen },
         ],
       },
     ],

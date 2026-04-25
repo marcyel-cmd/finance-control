@@ -10,6 +10,9 @@ import { CategoryPickerModal } from './CategoryPickerModal';
 
 interface Props {
   onClose: () => void;
+  initialType?: TabType;
+  initialDescription?: string;
+  initialValue?: string;
 }
 
 type TabType = 'entrada' | 'saida' | 'previsto';
@@ -20,11 +23,11 @@ const TABS: { id: TabType; label: string; color: string }[] = [
   { id: 'previsto', label: '⏱ Previsto', color: '#FFA502' },
 ];
 
-export function AddTransactionModal({ onClose }: Props) {
+export function AddTransactionModal({ onClose, initialType, initialDescription, initialValue }: Props) {
   const { addTransaction, cards, categories, showToast, period, transactions } = useApp();
-  const [tab, setTab] = useState<TabType>('saida');
-  const [description, setDescription] = useState('');
-  const [value, setValue] = useState('');
+  const [tab, setTab] = useState<TabType>(initialType ?? 'saida');
+  const [description, setDescription] = useState(initialDescription ?? '');
+  const [value, setValue] = useState(initialValue ?? '');
   // [ADD-01] FIX: 'alimentacao' pode não existir em contas com categorias personalizadas.
   // Inicializa com 'alimentacao' e, assim que a lista de categorias carregar, faz fallback
   // para a primeira categoria disponível caso 'alimentacao' não exista.

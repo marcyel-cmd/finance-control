@@ -1,0 +1,68 @@
+{
+  "name": "Controle Financeiro Inteligente",
+  "short_name": "Finanças",
+  "description": "Controle financeiro pessoal com IA, importação de faturas e captura rápida de transações.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0D1117",
+  "theme_color": "#0D1117",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "categories": ["finance", "productivity"],
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512 1024x1024",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512 1024x1024",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Nova despesa",
+      "short_name": "Despesa",
+      "description": "Lança uma nova saída rapidamente",
+      "url": "/quick?type=saida",
+      "icons": [{ "src": "/icons/shortcut-expense.svg", "sizes": "96x96", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Nova receita",
+      "short_name": "Receita",
+      "description": "Lança uma nova entrada rapidamente",
+      "url": "/quick?type=entrada",
+      "icons": [{ "src": "/icons/shortcut-income.svg", "sizes": "96x96", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Foto de cupom",
+      "short_name": "Foto",
+      "description": "Captura cupom/comprovante via câmera",
+      "url": "/quick?capture=photo",
+      "icons": [{ "src": "/icons/shortcut-photo.svg", "sizes": "96x96", "type": "image/svg+xml" }]
+    }
+  ],
+  "share_target": {
+    "action": "/share-target",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
+      "files": [
+        {
+          "name": "files",
+          "accept": ["image/*", "application/pdf", "text/csv", "text/plain"]
+        }
+      ]
+    }
+  }
+}

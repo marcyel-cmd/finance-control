@@ -13,6 +13,7 @@ interface Props {
   preselectedCardId?: string;
   billMonth?: number;
   billYear?: number;
+  initialFile?: File;
 }
 
 interface ParsedTransaction {
@@ -297,7 +298,7 @@ function ProcessingAnimation({ progress, stage }: { progress: number; stage: str
 
 // ─── Main Modal ──────────────────────────────────────────────────────────────
 
-export function ImportInvoiceModal({ onClose, preselectedCardId, billMonth, billYear }: Props) {
+export function ImportInvoiceModal({ onClose, preselectedCardId, billMonth, billYear, initialFile }: Props) {
   const { cards, categories, showToast, refreshData } = useApp();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -388,6 +389,18 @@ export function ImportInvoiceModal({ onClose, preselectedCardId, billMonth, bill
       startProcessing(file);
     }
   };
+
+  // Dispara processamento automático quando um arquivo é entregue via prop
+  // (caso de uso: Web Share Target da PWA). Só roda se já houver cartão selecionado.
+  const initialFileHandled = useRef(false);
+  useEffect(() => {
+    if (!initialFile || initialFileHandled.current) return;
+    if (!selectedCardId) return;
+    initialFileHandled.current = true;
+    setFileName(initialFile.name);
+    setUploadedFile(initialFile);
+    startProcessing(initialFile);
+  }, [initialFile, selectedCardId, startProcessing]);
 
   const toggleTransaction = (id: string) => {
     setParsedTransactions(prev =>
