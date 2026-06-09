@@ -1,8 +1,9 @@
 import React, { useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router';
-import { LayoutDashboard, Receipt, CreditCard, BarChart3, Menu, Plus, Camera, FileUp } from 'lucide-react';
+import { LayoutDashboard, Receipt, CreditCard, BarChart3, Menu, Plus, Camera, FileUp, Brain } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { ImportInvoiceModal } from '../finance/ImportInvoiceModal';
+import { SmartImportModal } from '../finance/SmartImportModal';
 import { ConfirmReceiptModal } from '../finance/ConfirmReceiptModal';
 
 const NAV_ITEMS = [
@@ -23,6 +24,7 @@ export function Sidebar() {
   // - showImport (com capturedFile?): Importar fatura → várias transações
   // - receiptFile: Foto de cupom → UMA transação avulsa
   const [showImport, setShowImport] = useState(false);
+  const [showSmartImport, setShowSmartImport] = useState(false);
   const [capturedFile, setCapturedFile] = useState<File | undefined>(undefined);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
 
@@ -98,7 +100,7 @@ export function Sidebar() {
           <Plus size={20} />
           Nova Transação
         </button>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <button
             onClick={() => fileInputRef.current?.click()}
             className="flex items-center justify-center gap-1.5 px-2 py-2.5 rounded-lg transition-all active:scale-95"
@@ -129,11 +131,27 @@ export function Sidebar() {
             <FileUp size={14} />
             Fatura
           </button>
+          <button
+            onClick={() => setShowSmartImport(true)}
+            className="flex items-center justify-center gap-1.5 px-2 py-2.5 rounded-lg transition-all active:scale-95"
+            style={{
+              background: 'rgba(124,92,252,0.10)',
+              border: '1px solid rgba(124,92,252,0.30)',
+              color: '#7C5CFC',
+              fontSize: '11px',
+              fontWeight: 600,
+            }}
+            title="Importação inteligente"
+          >
+            <Brain size={14} />
+            Smart
+          </button>
         </div>
       </div>
 
       {/* Modais do escopo desktop */}
       {showImport && <ImportInvoiceModal initialFile={capturedFile} onClose={handleImportClose} />}
+      {showSmartImport && <SmartImportModal onClose={() => setShowSmartImport(false)} />}
       {receiptFile && <ConfirmReceiptModal file={receiptFile} onClose={() => setReceiptFile(null)} />}
     </aside>
   );

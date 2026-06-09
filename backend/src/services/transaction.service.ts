@@ -196,6 +196,9 @@ export class TransactionService {
         : `Lan\u00E7ado na fatura de ${MONTH_PT[billMonth - 1]}.`;
     }
 
+    // Gatilho 1 \u2014 aviso de lan\u00E7amento (apenas 'realizado')
+    await this._notifyPosted(userId, tx);
+
     return { data: tx, _billMessage: _billMessage || undefined };
   }
 
@@ -354,6 +357,13 @@ export class TransactionService {
         data: { used: { increment: finalValue } },
       });
       await notificationService.checkCardLimit(userId, card);
+    }
+
+    // Gatilho 1 — aviso de lançamento quando o status final é 'realizado'.
+    // Só notifica se o status mudou para 'realizado' nesta atualização
+    // (evita renotificar em edições de uma transação que já estava realizada).
+    if (updated.status === 'realizado' && existing.status !== 'realizado') {
+      await this._notifyPosted(userId, updated);
     }
 
     return { data: updated };
@@ -568,6 +578,67 @@ export class TransactionService {
       })(),
       transactions: txs,
     };
+  }
+
+  // ── Gatilho 1 — Aviso de Lançamento ──────────────────────
+  // Notifica quando uma transação entra como 'realizado'. Despesas usam o ícone
+  // da categoria; receitas têm tom positivo. Parcelamentos incluem "2/6" no texto.
+  // Dedup: evita repetir no mesmo dia pra mesma transação (ex.: updates repetidos).
+  private async _notifyPosted(userId: string, tx: any) {
+    if (tx.status !== 'realizado') return;
+    if (!['saida', 'saida_futura', 'entrada'].includes(tx.type)) return;
+
+    const value = Number(tx.value);
+    const valueStr = `R$ ${value.toFixed(2).replace('.', ',')}`;
+
+    // Sufixo de parcela "(2/6)"
+    let parcela = '';
+    if (tx.installment && tx.installmentNumber && tx.installmentTotal) {
+      parcela = ` (${tx.installmentNumber}/${tx.installmentTotal})`;
+    }
+
+    // Dedup por dia + descrição + valor
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const already = await prisma.notification.findFirst({
+      where: {
+        userId,
+        actionRoute: '/transacoes',
+        createdAt: { gte: startOfDay },
+        AND: [
+          { message: { contains: tx.description } },
+          { message: { contains: valueStr } },
+        ],
+      },
+    });
+    if (already) return;
+
+    const isExpense = tx.type === 'saida' || tx.type === 'saida_futura';
+
+    if (isExpense) {
+      const cat = await prisma.category.findUnique({ where: { id: tx.category } });
+      const icon = cat?.icon || '\u{1F4B8}'; // 💸
+      const catLabel = cat?.label || tx.category;
+      await notificationService.create(userId, {
+        type: 'info',
+        title: 'Despesa lançada',
+        message: `${tx.description}${parcela} — ${valueStr} em ${catLabel}.`,
+        icon,
+        relatedAmount: value,
+        actionLabel: 'Ver Transações',
+        actionRoute: '/transacoes',
+      });
+    } else {
+      await notificationService.create(userId, {
+        type: 'info',
+        title: 'Receita recebida',
+        message: `${tx.description}${parcela} — ${valueStr} \u{1F4B0}`,
+        icon: '\u{1F4B0}', // 💰
+        relatedAmount: value,
+        actionLabel: 'Ver Transações',
+        actionRoute: '/transacoes',
+      });
+    }
   }
 
   private async _checkForecastCompletion(forecastId: string, userId: string) {

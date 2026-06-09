@@ -5,7 +5,8 @@ import {
   Fingerprint, ChevronRight, X, ArrowLeft, KeyRound, CheckCircle2
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { authApi } from '../services/auth.api';
+import { useBiometricAuth } from '../hooks/useBiometricAuth';
+import { isNative } from '../lib/platform';
 
 // ─── Animated Background ─────────────────────────────────────────────────────
 
@@ -707,6 +708,7 @@ export function LoginScreen() {
   const [error, setError] = useState('');
   const [showBiometric, setShowBiometric] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const { authenticate: biometricAuthenticate } = useBiometricAuth();
 
   // Restore remembered email on mount
   useEffect(() => {
@@ -745,37 +747,51 @@ export function LoginScreen() {
     }
   }, [email, password, rememberMe, navigate, loginUser]);
 
+  // Web: chamado ap\u00F3s a anima\u00E7\u00E3o do overlay. Usa o hook (WebAuthn).
   const handleBiometricSuccess = useCallback(async () => {
-    try {
-      // Check if WebAuthn is available on this device
-      if (!window.PublicKeyCredential) {
-        setError('Biometria n\u00E3o suportada neste navegador');
-        setShowBiometric(false);
-        return;
-      }
-      const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-      if (!available) {
-        setError('Biometria n\u00E3o dispon\u00EDvel neste dispositivo');
-        setShowBiometric(false);
-        return;
-      }
-      // Attempt real WebAuthn authentication
-      const res = await authApi.authenticateWithBiometry(email || undefined);
-      if (res.user) {
-        navigate('/');
-      }
-    } catch (err: any) {
+    // Check if WebAuthn is available on this device
+    if (!window.PublicKeyCredential) {
+      setError('Biometria n\u00E3o suportada neste navegador');
       setShowBiometric(false);
-      const msg = err?.message || '';
-      if (msg.includes('NotAllowed') || msg.includes('cancelled') || msg.includes('cancelada')) {
-        setError('Autentica\u00E7\u00E3o cancelada');
-      } else if (msg.includes('Passkey') || msg.includes('cadastrada') || msg.includes('not found')) {
-        setError('Nenhuma biometria cadastrada. Fa\u00E7a login com e-mail e senha, depois cadastre em Configura\u00E7\u00F5es.');
-      } else {
-        setError(msg || 'Erro na autentica\u00E7\u00E3o biom\u00E9trica');
-      }
+      return;
     }
-  }, [email, navigate]);
+    const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+    if (!available) {
+      setError('Biometria n\u00E3o dispon\u00EDvel neste dispositivo');
+      setShowBiometric(false);
+      return;
+    }
+    const res = await biometricAuthenticate(email || undefined);
+    if (res.ok) {
+      navigate('/');
+      return;
+    }
+    setShowBiometric(false);
+    const msg = res.error || '';
+    if (msg.includes('cancel') || msg.includes('cancelada')) {
+      setError('Autentica\u00E7\u00E3o cancelada');
+    } else if (msg.includes('Passkey') || msg.includes('cadastrada') || msg.includes('not found')) {
+      setError('Nenhuma biometria cadastrada. Fa\u00E7a login com e-mail e senha, depois cadastre em Configura\u00E7\u00F5es.');
+    } else {
+      setError(msg || 'Erro na autentica\u00E7\u00E3o biom\u00E9trica');
+    }
+  }, [email, navigate, biometricAuthenticate]);
+
+  // Disparado pelo bot\u00E3o. No nativo abre o prompt do sistema direto; no web
+  // mostra o overlay animado que depois chama handleBiometricSuccess.
+  const handleBiometricButton = useCallback(async () => {
+    if (!isNative()) {
+      setShowBiometric(true);
+      return;
+    }
+    setError('');
+    const res = await biometricAuthenticate(email || undefined);
+    if (res.ok) {
+      navigate('/');
+    } else {
+      setError(res.error || 'Erro na autentica\u00E7\u00E3o biom\u00E9trica');
+    }
+  }, [email, navigate, biometricAuthenticate]);
 
   const featurePills = [
     { icon: Shield, label: 'Seguro', delay: 300 },
@@ -974,7 +990,7 @@ export function LoginScreen() {
 
         {/* ── Biometric Login ── */}
         <button
-          onClick={() => setShowBiometric(true)}
+          onClick={handleBiometricButton}
           className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl active:scale-[0.98] transition-all mb-6"
           style={{
             background: 'rgba(168,85,247,0.08)',

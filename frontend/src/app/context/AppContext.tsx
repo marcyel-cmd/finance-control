@@ -6,6 +6,7 @@ import { cardsApi } from '../services/cards.api';
 import { categoriesApi } from '../services/categories.api';
 import { notificationsApi } from '../services/notifications.api';
 import { clearTokens, getAccessToken } from '../services/api';
+import { secureStorage } from '../services/secureStorage';
 
 // ========== CORREÇÃO PROBLEMA 1 ==========
 // Sistema de listeners para notificar componentes de mudanças
@@ -85,7 +86,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [currentUser, setCurrentUser] = useState<AppUser | null>(() => {
     try {
-      const saved = localStorage.getItem('fc_current_user');
+      const saved = secureStorage.getSync('fc_current_user');
       if (!saved) return null;
       const parsed = JSON.parse(saved);
       // [A-05] FIX: remover campo password de dados legados salvos no localStorage

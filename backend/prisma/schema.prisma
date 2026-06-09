@@ -26,6 +26,7 @@ model User {
   recurringTemplates   RecurringTemplate[]
   transactionTemplates TransactionTemplate[]
   pushSubscriptions    PushSubscription[]
+  pushTokens           PushToken[]
 
   @@map("users")
 }
@@ -230,6 +231,22 @@ model PushSubscription {
 
   @@index([userId])
   @@map("push_subscriptions")
+}
+
+// Token de push nativo (FCM/APNs) registrado pelo app mobile (Capacitor).
+// Um usuário pode ter vários (um por dispositivo). O backend envia push nativo
+// via firebase-admin pra todos os tokens do usuário, além do Web Push já existente.
+model PushToken {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  platform  String // 'ios' | 'android'
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_tokens")
 }
 
 model WebAuthnChallenge {

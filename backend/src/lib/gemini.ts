@@ -192,6 +192,246 @@ Formato exato:
   }
 }
 
+// ── Smart Import: extrai múltiplas transações de screenshots de extrato/fatura ──
+
+export interface SmartImportTransaction {
+  description: string;
+  value: number;
+  date: string;              // YYYY-MM-DD
+  type: 'entrada' | 'saida';
+  categoryId: string;
+  paymentMethodGuess?: string;
+  isInstallment: boolean;
+  currentInstallment?: number;
+  totalInstallments?: number;
+  confidence: number;
+  originalText: string;
+}
+
+export interface SmartImportResult {
+  transactions: SmartImportTransaction[];
+  summary: {
+    total: number;
+    count: number;
+    dateRange: { from: string; to: string };
+    totalEntradas: number;
+    totalSaidas: number;
+  };
+}
+
+export async function smartImportFromImages(
+  imagePaths: string[],
+  categories: { id: string; label: string }[],
+): Promise<SmartImportResult> {
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+  const catList = categories.map(c => `${c.id}: ${c.label}`).join('\n');
+
+  const systemPrompt = `Você é especialista em ler extratos bancários, faturas de cartão e comprovantes financeiros brasileiros a partir de screenshots/imagens.
+
+Sua tarefa: extrair TODAS as transações visíveis nas imagens. Pode haver múltiplas imagens de páginas diferentes do mesmo extrato.
+
+Para CADA transação, identifique:
+1. Descrição (MAIÚSCULAS, nome curto do estabelecimento/destino)
+2. Valor (número positivo, float com ponto decimal)
+3. Data (YYYY-MM-DD)
+4. Tipo: "entrada" (depósitos, PIX recebido, salário, rendimentos) ou "saida" (compras, pagamentos, transferências enviadas, débitos)
+5. Categoria mais apropriada
+6. Método de pagamento se identificável: "credito", "debito", "pix", "transferencia", "dinheiro", "boleto"
+7. Se é parcelada: identifique padrões como "1/3", "2/12", "PARC 3/6", "parcela 2 de 10"
+
+REGRAS IMPORTANTES:
+- Ignore saldos, totais parciais, cabeçalhos, rodapés
+- Ignore IOF, encargos, juros, tarifas bancárias (a menos que sejam significativas > R$5)
+- Valores: SEMPRE positivo (o campo "type" indica se é entrada ou saída)
+- Se o mesmo valor aparece como "débito" e "crédito" (estorno), inclua ambos
+- Datas devem ser no formato YYYY-MM-DD. Se o ano não estiver visível, use ${new Date().getFullYear()}
+- Para parcelas: currentInstallment é a parcela atual, totalInstallments é o total
+
+Categorias disponíveis (use EXATAMENTE estes IDs):
+${catList}
+
+Mapeamento típico:
+- Mercado/supermercado/padaria → alimentacao
+- Uber/99/combustível/estacionamento → transporte
+- Farmácia/consulta/plano → saude
+- Restaurante/iFood/lanchonete → alimentacao
+- Netflix/Spotify/cinema/jogos → lazer
+- Conta luz/água/internet/telefone → contas
+- Salário/freelance → renda
+- PIX recebido → renda ou outros (depende do contexto)
+- PIX enviado → outros ou inferir pelo destinatário
+
+Responda APENAS com JSON válido. Sem markdown, sem explicações.
+
+Formato exato:
+{
+  "transactions": [
+    {
+      "description": "MERCADO SAO JORGE",
+      "value": 182.40,
+      "date": "2026-05-28",
+      "type": "saida",
+      "categoryId": "alimentacao",
+      "paymentMethodGuess": "debito",
+      "isInstallment": false,
+      "confidence": 0.95,
+      "originalText": "28/05 MERCADO SAO JORGE 182,40 D"
+    },
+    {
+      "description": "AMAZON 3/12",
+      "value": 29.90,
+      "date": "2026-05-15",
+      "type": "saida",
+      "categoryId": "outros",
+      "paymentMethodGuess": "credito",
+      "isInstallment": true,
+      "currentInstallment": 3,
+      "totalInstallments": 12,
+      "confidence": 0.90,
+      "originalText": "15/05 AMAZON 3/12 29,90"
+    }
+  ],
+  "summary": {
+    "total": 212.30,
+    "count": 2,
+    "dateRange": { "from": "2026-05-15", "to": "2026-05-28" },
+    "totalEntradas": 0,
+    "totalSaidas": 212.30
+  }
+}`;
+
+  // Montar conteúdo com todas as imagens
+  const parts: any[] = [];
+  for (const imgPath of imagePaths) {
+    const buf = fs.readFileSync(imgPath);
+    const base64 = buf.toString('base64');
+    const ext = imgPath.toLowerCase();
+    const mime = ext.endsWith('.png') ? 'image/png'
+               : ext.endsWith('.webp') ? 'image/webp'
+               : ext.endsWith('.pdf') ? 'application/pdf'
+               : 'image/jpeg';
+    parts.push({ inlineData: { mimeType: mime, data: base64 } });
+  }
+  parts.push({ text: `Extraia TODAS as transações visíveis ${imagePaths.length > 1 ? 'nas ' + imagePaths.length + ' imagens' : 'na imagem'}. Inclua entradas e saídas.` });
+
+  try {
+    const response = await model.generateContent({
+      contents: [{ role: 'user', parts }],
+      systemInstruction: systemPrompt,
+      generationConfig: { temperature: 0.1 },
+    });
+
+    const text = response.response.text();
+    const clean = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const parsed = JSON.parse(clean);
+
+    // Validação e sanitização
+    if (!parsed.transactions || !Array.isArray(parsed.transactions)) {
+      throw new Error('Resposta sem campo transactions');
+    }
+
+    // Validar cada transação
+    parsed.transactions = parsed.transactions.filter((tx: any) => {
+      return tx.description && typeof tx.value === 'number' && tx.value > 0 && tx.date;
+    });
+
+    // Garantir categorias válidas
+    const validCatIds = new Set(categories.map(c => c.id));
+    for (const tx of parsed.transactions) {
+      if (!validCatIds.has(tx.categoryId)) {
+        tx.categoryId = 'outros';
+      }
+      if (!['entrada', 'saida'].includes(tx.type)) {
+        tx.type = 'saida';
+      }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(tx.date)) {
+        const t = new Date();
+        tx.date = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+      }
+    }
+
+    return parsed as SmartImportResult;
+  } catch (error: any) {
+    throw new Error(`Erro ao processar imagens com Gemini: ${error.message}`);
+  }
+}
+
+// ── Detecção de duplicatas via Gemini ────────────────────────────────────────
+
+export interface DuplicateCheckItem {
+  index: number;
+  extracted: { description: string; value: number; date: string; type: string };
+  existing: { id: string; description: string; value: number; date: string; type: string };
+}
+
+export interface DuplicateCheckResult {
+  index: number;
+  isDuplicate: boolean;
+  confidence: number;
+  reason: string;
+}
+
+export async function checkDuplicatesWithGemini(
+  items: DuplicateCheckItem[]
+): Promise<DuplicateCheckResult[]> {
+  if (items.length === 0) return [];
+
+  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+
+  const prompt = `Você é um analisador de duplicatas financeiras. Para cada par abaixo, determine se a transação EXTRAÍDA é a mesma que a transação EXISTENTE no banco de dados.
+
+Considere duplicata quando:
+- Mesma pessoa/estabelecimento (mesmo com variações de nome: "MERCADO SAO JORGE" = "MERCADO S JORGE" = "MRC S JORGE")
+- Mesmo valor OU valor muito próximo (diferença < R$1)
+- Data igual ou muito próxima (±3 dias — bancos podem registrar em datas diferentes)
+- Mesmo tipo (entrada/saída)
+
+NÃO considere duplicata quando:
+- É uma compra recorrente (ex: Spotify todo mês) mas em meses DIFERENTES
+- Valores iguais mas estabelecimentos claramente diferentes
+- Mesmo estabelecimento mas valores muito diferentes (>10% de diferença)
+
+Pares para análise:
+${items.map((item, i) => `
+[${i}] EXTRAÍDA: "${item.extracted.description}" | R$${item.extracted.value} | ${item.extracted.date} | ${item.extracted.type}
+    EXISTENTE: "${item.existing.description}" | R$${item.existing.value} | ${item.existing.date} | ${item.existing.type}
+`).join('')}
+
+Responda APENAS com JSON válido:
+{
+  "results": [
+    { "index": 0, "isDuplicate": true, "confidence": 0.95, "reason": "Mesmo estabelecimento e valor, data +1 dia" },
+    { "index": 1, "isDuplicate": false, "confidence": 0.20, "reason": "Mesmo valor mas estabelecimentos diferentes" }
+  ]
+}`;
+
+  try {
+    const response = await model.generateContent({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.1, maxOutputTokens: 2000 },
+    });
+
+    const text = response.response.text();
+    const clean = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const parsed = JSON.parse(clean);
+
+    return (parsed.results || []).map((r: any) => ({
+      index: r.index ?? 0,
+      isDuplicate: r.isDuplicate ?? false,
+      confidence: r.confidence ?? 0,
+      reason: r.reason || '',
+    }));
+  } catch {
+    // Fallback: retornar todos como não-duplicados se Gemini falhar
+    return items.map((item) => ({
+      index: item.index,
+      isDuplicate: false,
+      confidence: 0,
+      reason: 'Falha na análise de IA — marcado como novo',
+    }));
+  }
+}
+
 export async function analyzeInvoiceWithGemini(
   textOrImagePath: string,
   isImage: boolean,

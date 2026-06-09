@@ -9,19 +9,20 @@ import { MoreScreen } from './screens/MoreScreen';
 import { LoginScreen } from './screens/LoginScreen';
 import { QuickAddScreen } from './screens/QuickAddScreen';
 import { ShareTargetScreen } from './screens/ShareTargetScreen';
+import { secureStorage } from './services/secureStorage';
 
-// Auth guard — verifica token JWT
+// Auth guard — verifica token JWT (lê do storage seguro, hidratado no boot)
 function requireAuth() {
-  const hasToken = !!localStorage.getItem('fc_access_token');
-  const isAuth = localStorage.getItem('fc_auth') === 'true';
+  const hasToken = !!secureStorage.getSync('fc_access_token');
+  const isAuth = secureStorage.getSync('fc_auth') === 'true';
   if (!hasToken || !isAuth) return redirect('/login');
   return null;
 }
 
 // Redirect if already logged in
 function redirectIfAuth() {
-  const hasToken = !!localStorage.getItem('fc_access_token');
-  const isAuth = localStorage.getItem('fc_auth') === 'true';
+  const hasToken = !!secureStorage.getSync('fc_access_token');
+  const isAuth = secureStorage.getSync('fc_auth') === 'true';
   if (hasToken && isAuth) return redirect('/');
   return null;
 }

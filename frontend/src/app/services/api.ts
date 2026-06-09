@@ -1,10 +1,13 @@
 // src/app/services/api.ts
 // Cliente HTTP base com JWT e refresh automático
 
+import { secureStorage } from './secureStorage';
+
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3333/api/v1';
 
-let accessToken: string | null = localStorage.getItem('fc_access_token');
-let refreshToken: string | null = localStorage.getItem('fc_refresh_token');
+// Leitura síncrona do cache do secureStorage (hidratado no boot em main.tsx).
+let accessToken: string | null = secureStorage.getSync('fc_access_token');
+let refreshToken: string | null = secureStorage.getSync('fc_refresh_token');
 let isRefreshing = false;
 let refreshQueue: Array<() => void> = [];
 
@@ -13,17 +16,17 @@ let refreshQueue: Array<() => void> = [];
 export function setTokens(access: string, refresh: string) {
   accessToken = access;
   refreshToken = refresh;
-  localStorage.setItem('fc_access_token', access);
-  localStorage.setItem('fc_refresh_token', refresh);
+  secureStorage.set('fc_access_token', access);
+  secureStorage.set('fc_refresh_token', refresh);
 }
 
 export function clearTokens() {
   accessToken = null;
   refreshToken = null;
-  localStorage.removeItem('fc_access_token');
-  localStorage.removeItem('fc_refresh_token');
-  localStorage.removeItem('fc_auth');
-  localStorage.removeItem('fc_current_user');
+  secureStorage.remove('fc_access_token');
+  secureStorage.remove('fc_refresh_token');
+  secureStorage.remove('fc_auth');
+  secureStorage.remove('fc_current_user');
 }
 
 export function getAccessToken() {

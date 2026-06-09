@@ -1,7 +1,24 @@
 import { Request, Response, NextFunction } from 'express';
 import { notificationService } from '../services/notification.service';
+import { pushTokenService } from '../services/pushToken.service';
+import { AppError } from '../middlewares/errorHandler';
 
 export class NotificationController {
+
+  // Registra o token de push nativo (FCM/APNs) do dispositivo mobile.
+  async registerPushToken(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { token, platform } = req.body ?? {};
+      if (!token || typeof token !== 'string') {
+        throw new AppError(400, 'Token de push inválido');
+      }
+      if (platform !== 'ios' && platform !== 'android') {
+        throw new AppError(400, "Plataforma inválida (use 'ios' ou 'android')");
+      }
+      const result = await pushTokenService.save(req.user!.userId, token, platform);
+      res.status(201).json({ success: true, data: { id: result.id } });
+    } catch (error) { next(error); }
+  }
 
   async list(req: Request, res: Response, next: NextFunction) {
     try {

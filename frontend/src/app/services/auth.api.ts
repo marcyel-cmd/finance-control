@@ -1,5 +1,6 @@
 // src/app/services/auth.api.ts
 import { apiFetch, setTokens, clearTokens } from './api';
+import { secureStorage } from './secureStorage';
 
 export interface LoginResponse {
   success: boolean;
@@ -23,8 +24,8 @@ export const authApi = {
       skipAuth: true,
     });
     setTokens(data.accessToken, data.refreshToken);
-    localStorage.setItem('fc_auth', 'true');
-    localStorage.setItem('fc_current_user', JSON.stringify(data.user));
+    secureStorage.set('fc_auth', 'true');
+    secureStorage.set('fc_current_user', JSON.stringify(data.user));
     return data;
   },
 
@@ -35,8 +36,8 @@ export const authApi = {
       skipAuth: true,
     });
     setTokens(data.accessToken, data.refreshToken);
-    localStorage.setItem('fc_auth', 'true');
-    localStorage.setItem('fc_current_user', JSON.stringify(data.user));
+    secureStorage.set('fc_auth', 'true');
+    secureStorage.set('fc_current_user', JSON.stringify(data.user));
     return data;
   },
 
@@ -69,8 +70,8 @@ export const authApi = {
       skipAuth: true,
     });
     setTokens(data.accessToken, data.refreshToken);
-    localStorage.setItem('fc_auth', 'true');
-    localStorage.setItem('fc_current_user', JSON.stringify(data.user));
+    secureStorage.set('fc_auth', 'true');
+    secureStorage.set('fc_current_user', JSON.stringify(data.user));
     return data;
   },
 

@@ -4,3 +4,11 @@ dist/
 *.log
 .DS_Store
 tmp/
+
+# Capacitor — projetos nativos gerados/buildados localmente (Android Studio/Xcode)
+frontend/android/
+frontend/ios/
+# Credenciais Firebase
+**/google-services.json
+**/GoogleService-Info.plist
+firebase-service-account*.json

@@ -34,4 +34,12 @@ export const notificationsApi = {
   async deleteAllRead() {
     return apiFetch('/notifications/read', { method: 'DELETE' });
   },
+
+  // Registra o token de push nativo (FCM/APNs) do dispositivo no backend.
+  async registerPushToken(token: string, platform: 'ios' | 'android') {
+    return apiFetch('/notifications/push-token', {
+      method: 'POST',
+      body: { token, platform },
+    });
+  },
 };

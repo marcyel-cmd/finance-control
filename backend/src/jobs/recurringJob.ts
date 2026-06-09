@@ -1,5 +1,6 @@
 import cron from 'node-cron';
 import { recurringService } from '../services/recurring.service';
+import { notificationService } from '../services/notification.service';
 
 let scheduled = false;
 
@@ -22,6 +23,27 @@ export function startRecurringJob() {
     } catch (err) {
       console.error(`[recurring] ${label}: erro`, err);
     }
+
+    // ── Gatilhos de notificação diários (após recorrências) ──
+    // Cada bloco é independente: erro em um não impede os demais.
+    // Gatilho 3 — lançamentos previstos
+    try {
+      await notificationService.notifyUpcomingForecasts();
+    } catch (err) {
+      console.error(`[notif] ${label}: erro em notifyUpcomingForecasts`, err);
+    }
+    // Gatilho 4 — vencimentos de cartão
+    try {
+      await notificationService.notifyCardDueDates();
+    } catch (err) {
+      console.error(`[notif] ${label}: erro em notifyCardDueDates`, err);
+    }
+    // Gatilho 2 — resumo diário (também roda às 20:00 via cron separado)
+    try {
+      await notificationService.sendDailyExpenseSummary();
+    } catch (err) {
+      console.error(`[notif] ${label}: erro em sendDailyExpenseSummary`, err);
+    }
   };
 
   // Backfill no boot — cobre downtime do servidor
@@ -30,5 +52,11 @@ export function startRecurringJob() {
   // Cron diário 06:00
   cron.schedule('0 6 * * *', () => { void runOnce('cron'); });
 
-  console.log('[recurring] job agendado para 06:00 diariamente');
+  // Cron 20:00 — resumo diário de gastos (Gatilho 2)
+  cron.schedule('0 20 * * *', () => {
+    void notificationService.sendDailyExpenseSummary()
+      .catch(err => console.error('[notif] cron 20:00: erro em sendDailyExpenseSummary', err));
+  });
+
+  console.log('[recurring] job agendado para 06:00 e resumo diário às 20:00');
 }

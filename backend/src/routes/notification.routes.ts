@@ -7,6 +7,7 @@ const notificationRouter = Router();
 notificationRouter.use(authMiddleware);
 
 notificationRouter.get('/',              (req, res, next) => notificationController.list(req, res, next));
+notificationRouter.post('/push-token',   (req, res, next) => notificationController.registerPushToken(req, res, next));
 notificationRouter.get('/unread-count',  (req, res, next) => notificationController.unreadCount(req, res, next));
 notificationRouter.patch('/read-all',    (req, res, next) => notificationController.markAllRead(req, res, next));
 notificationRouter.delete('/read',       (req, res, next) => notificationController.deleteAllRead(req, res, next));

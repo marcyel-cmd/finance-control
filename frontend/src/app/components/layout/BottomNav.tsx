@@ -31,6 +31,8 @@ export function BottomNav() {
         width: '100%',
         maxWidth: deviceType === 'tablet' ? '768px' : '430px',
         boxShadow: '0 -4px 24px rgba(0, 0, 0, 0.4)',
+        // Respeita o home indicator do iPhone (safe area) no app nativo
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
       }}
     >
       <div className="grid grid-cols-5 h-16 md:h-[68px]">

@@ -6,6 +6,7 @@ import { AnimatedOutlet } from './AnimatedOutlet';
 import { AddTransactionModal } from '../finance/AddTransactionModal';
 import { ManageCardsModal } from '../finance/ManageCardsModal';
 import { ImportInvoiceModal } from '../finance/ImportInvoiceModal';
+import { SmartImportModal } from '../finance/SmartImportModal';
 import { ConfirmReceiptModal } from '../finance/ConfirmReceiptModal';
 import { NotificationPanel } from '../ui/NotificationPanel';
 import { ToastContainer } from '../ui/ToastContainer';
@@ -29,6 +30,7 @@ export function MobileShell() {
   // - showImport (com capturedFile?): "Importar fatura" — várias transações de fatura/extrato
   // - receiptFile: "Foto de cupom" — UMA transação avulsa (cupom fiscal/PIX/comprovante)
   const [showImport, setShowImport] = useState(false);
+  const [showSmartImport, setShowSmartImport] = useState(false);
   const [capturedFile, setCapturedFile] = useState<File | undefined>(undefined);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
 
@@ -93,6 +95,7 @@ export function MobileShell() {
         {showAddModal && <AddTransactionModal onClose={() => setShowAddModal(false)} />}
         {showManageCards && <ManageCardsModal onClose={() => setShowManageCards(false)} />}
         {showImport && <ImportInvoiceModal initialFile={capturedFile} onClose={handleImportClose} />}
+        {showSmartImport && <SmartImportModal onClose={() => setShowSmartImport(false)} />}
         {receiptFile && <ConfirmReceiptModal file={receiptFile} onClose={() => setReceiptFile(null)} />}
 
         {/* Notification Panel */}
@@ -139,6 +142,7 @@ export function MobileShell() {
                 onManual={() => setShowAddModal(true)}
                 onPhoto={handlePhotoCapture}
                 onImportInvoice={() => { setCapturedFile(undefined); setShowImport(true); }}
+                onSmartImport={() => setShowSmartImport(true)}
               />
             </div>
           </div>
@@ -148,6 +152,7 @@ export function MobileShell() {
         {showAddModal && <AddTransactionModal onClose={() => setShowAddModal(false)} />}
         {showManageCards && <ManageCardsModal onClose={() => setShowManageCards(false)} />}
         {showImport && <ImportInvoiceModal initialFile={capturedFile} onClose={handleImportClose} />}
+        {showSmartImport && <SmartImportModal onClose={() => setShowSmartImport(false)} />}
         {receiptFile && <ConfirmReceiptModal file={receiptFile} onClose={() => setReceiptFile(null)} />}
 
         {/* Notification Panel */}

@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Pencil, Camera, FileUp, X } from 'lucide-react';
+import { Pencil, Camera, FileUp, Brain, X } from 'lucide-react';
 
 interface Props {
   onManual: () => void;
   onPhoto: (file: File) => void;
   onImportInvoice: () => void;
+  onSmartImport: () => void;
   size?: 'mobile' | 'tablet';
 }
 
@@ -13,7 +14,7 @@ interface Props {
 //   - Manual (modal de transação tradicional)
 //   - Foto de cupom (abre câmera; arquivo selecionado vai pro callback)
 //   - Importar fatura (modal de importação tradicional)
-export function QuickActionFab({ onManual, onPhoto, onImportInvoice, size = 'mobile' }: Props) {
+export function QuickActionFab({ onManual, onPhoto, onImportInvoice, onSmartImport, size = 'mobile' }: Props) {
   const [open, setOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -33,6 +34,11 @@ export function QuickActionFab({ onManual, onPhoto, onImportInvoice, size = 'mob
   const handleImport = () => {
     setOpen(false);
     onImportInvoice();
+  };
+
+  const handleSmartImport = () => {
+    setOpen(false);
+    onSmartImport();
   };
 
   const handlePhotoClick = () => {
@@ -88,9 +94,10 @@ export function QuickActionFab({ onManual, onPhoto, onImportInvoice, size = 'mob
             style={{ transform: 'translateY(-100%)' }}
           >
             {[
-              { id: 'photo',   label: 'Foto de cupom',    icon: Camera, color: '#A855F7', onClick: handlePhotoClick },
-              { id: 'import',  label: 'Importar fatura',  icon: FileUp, color: '#4A90D9', onClick: handleImport },
-              { id: 'manual',  label: 'Lançar manual',    icon: Pencil, color: '#00D97E', onClick: handleManual },
+              { id: 'smart',   label: 'Import. Inteligente', icon: Brain,  color: '#7C5CFC', onClick: handleSmartImport },
+              { id: 'photo',   label: 'Foto de cupom',       icon: Camera, color: '#A855F7', onClick: handlePhotoClick },
+              { id: 'import',  label: 'Importar fatura',     icon: FileUp, color: '#4A90D9', onClick: handleImport },
+              { id: 'manual',  label: 'Lançar manual',       icon: Pencil, color: '#00D97E', onClick: handleManual },
             ].map((item, i) => (
               <motion.div
                 key={item.id}

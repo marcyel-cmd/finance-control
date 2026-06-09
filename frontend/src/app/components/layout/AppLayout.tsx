@@ -1,6 +1,7 @@
 import React, { Suspense, Component, ReactNode } from 'react';
 import { Outlet } from 'react-router';
 import { AppProvider } from '../../context/AppContext';
+import { NativeBootstrap } from './NativeBootstrap';
 
 class ErrorBoundary extends Component<
   { children: ReactNode },
@@ -64,6 +65,7 @@ export function AppLayout() {
   return (
     <ErrorBoundary>
       <AppProvider>
+        <NativeBootstrap />
         <Suspense fallback={<div style={{ minHeight: '100vh', background: '#0D1117' }} />}>
           <Outlet />
         </Suspense>
